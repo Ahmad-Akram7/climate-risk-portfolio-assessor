@@ -1,0 +1,5 @@
+asset_id,expected_risk_score,expected_risk_tier,expected_loss_usd
+PK-KHI-001,13.4,Low,1060014
+PK-LHE-001,7.3,Low,451823
+PK-ISB-001,6.9,Low,1055515
+PK-PEW-001,4.5,Low,531646

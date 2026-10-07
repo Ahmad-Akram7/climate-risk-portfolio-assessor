@@ -1,0 +1,16 @@
+asset_id,name,lat,lon,state,asset_class,replacement_value
+A001,Miami Office Tower,25.7617,-80.1918,FL,office,50M
+A002,Houston Warehouse,29.7604,-95.3698,TX,industrial,20M
+A003,Tampa Regional Hospital,27.9506,-82.4572,FL,hospital,120M
+A004,New Orleans Data Center,29.9511,-90.0715,LA,data_center,85M
+A005,Charleston Hotel,32.7765,-79.9311,SC,hotel,38M
+A006,Norfolk Distribution Hub,36.8508,-76.2859,VA,industrial,27M
+A007,Jersey City Apartments,40.7178,-74.0431,NJ,residential,64M
+A008,Galveston Retail Center,29.3013,-94.7977,TX,retail,18M
+A009,Phoenix Logistics Park,33.4484,-112.0740,AZ,industrial,31M
+A010,Los Angeles Office Campus,34.0522,-118.2437,CA,office,95M
+A011,Sacramento Substation,38.5816,-121.4944,CA,infrastructure,22M
+A012,Boulder Research Lab,40.0150,-105.2705,CO,other,41M
+A013,Savannah Port Terminal,32.0809,-81.0912,GA,infrastructure,140M
+A014,Boston Waterfront Office,42.3601,-71.0589,MA,office,72M
+A015,Wilmington Retail Plaza,34.2257,-77.9447,NC,retail,16M

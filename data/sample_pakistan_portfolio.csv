@@ -1,0 +1,5 @@
+asset_id,name,lat,lon,state,asset_class,replacement_value
+PK-KHI-001,Karachi Coastal Office,24.8607,67.0011,Sindh,office,50000000
+PK-LHE-001,Lahore Manufacturing Plant,31.5204,74.3587,Punjab,industrial,35000000
+PK-ISB-001,Islamabad Data Center,33.6844,73.0479,ICT,data_center,80000000
+PK-PEW-001,Peshawar Hospital,34.0151,71.5249,Khyber Pakhtunkhwa,hospital,45000000

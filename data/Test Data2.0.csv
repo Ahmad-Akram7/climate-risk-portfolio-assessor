@@ -1,0 +1,22 @@
+﻿asset_id,name,lat,lon,state,asset_class,replacement_value,,
+PAK001,Karachi Port Qasim Logistics Hub,24.8607,67.0011,Sindh,industrial,1.50E+08,,
+PAK002,Lahore Textile Mill Complex,31.5204,74.3587,Punjab,industrial,45000000,000,000
+PAK003,Sukkur Barrage Agricultural Storage,27.7052,68.8574,Sindh,infrastructure,5000000,,
+PAK004,Islamabad Corporate HQ,33.6844,73.0479,Islamabad Capital Territory,office,1.20E+08,000,000
+PAK005,Gilgit Hydropower Substation,35.9208,74.3144,Gilgit-Baltistan,infrastructure,25000000,,
+PAK006,Jacobabad Cold Storage Facility,28.2819,68.4381,Sindh,industrial,2500000,,
+PAK007,Peshawar University Campus,34.0151,71.5249,Khyber Pakhtunkhwa,office,35000000,000,000
+PAK008,Gwadar Desalination Plant,25.1212,62.3219,Balochistan,infrastructure,80000000,,
+PAK009,Multan Central Hospital,30.1575,71.5249,Punjab,hospital,15500000,500,000
+PAK010,Skardu Mountain Resort,35.2975,75.6333,Gilgit-Baltistan,hotel,8500000,,
+PAK011,Hyderabad Logistics Depot,25.396,68.3578,Sindh,industrial,12000000,,
+PAK012,Quetta Secure Data Center,30.1798,66.975,Balochistan,data_center,65000000,000,000
+PAK013,Faisalabad Power Loom Facility,31.4187,73.0791,Punjab,industrial,18000000,,
+PAK014,Muzaffarabad Admin Building,34.37,73.47,AJK,office,4200000,200,000
+PAK015,Badin Wind Farm Substation,24.656,68.837,Sindh,infrastructure,9500000,,
+PAK016,Dera Ghazi Khan Grain Silo,30.0459,70.6418,Punjab,infrastructure,3200000,,
+PAK017,Thatta Coastal Rice Mill,24.7458,67.9214,Sindh,industrial,1800000,,
+PAK018,Chitral Telecom Tower Hub,35.8518,71.7866,Khyber Pakhtunkhwa,infrastructure,750000,,
+PAK019,Nawabshah Solar Array,26.2483,68.41,Sindh,infrastructure,45000000,,
+PAK020,Murree Heritage Hotel,33.9088,73.3903,Punjab,hotel,8500000,500,000
+PAK021,Remote Field Outpost Alpha,29.12,69.55,Punjab,residential,2500,,

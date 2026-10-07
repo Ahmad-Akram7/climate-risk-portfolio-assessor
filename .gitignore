@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.cache/
+.streamlit/
+outputs/
+data/hazards/*.tif
+data/hazards/*.gpkg
+data/hazards/elevation_dem_tiles/

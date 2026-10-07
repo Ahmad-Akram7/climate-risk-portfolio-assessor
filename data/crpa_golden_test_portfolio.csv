@@ -1,0 +1,6 @@
+asset_id,name,lat,lon,state,asset_class,replacement_value
+TEST-FL-001,Miami Coastal Office,25.7617,-80.1918,FL,office,50000000
+TEST-TX-001,Houston Warehouse,29.7604,-95.3698,TX,industrial,20000000
+TEST-CA-001,Los Angeles Office,34.0522,-118.2437,CA,office,30000000
+TEST-CO-001,Denver Data Center,39.7392,-104.9903,CO,data_center,80000000
+TEST-FL-002,Miami Hospital,25.7907,-80.13,FL,hospital,120000000

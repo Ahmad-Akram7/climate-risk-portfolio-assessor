@@ -1,0 +1,5 @@
+# Optional: needed for FEMA NFHL GeoPackages, local GeoTIFF layers, and .gpkg output
+geopandas>=0.14
+shapely>=2.0
+pyogrio>=0.7
+rasterio>=1.3
