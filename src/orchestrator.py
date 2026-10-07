@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from . import config, fragility, hazards, ingestion, reporting
+from .exposure import enrich_assets
 
 
 def run_assessment(source, scenario: str = "current", use_llm: bool = True, frameworks: list[str] | None = None,
@@ -27,11 +28,16 @@ def run_assessment(source, scenario: str = "current", use_llm: bool = True, fram
     if ing.n_valid == 0:
         raise ValueError("No valid assets after validation. See issues: " + json.dumps(ing.summary()["issues"][:5]))
 
+    p("Exposure profile", 0.18)
+    enriched, exposure_meta = enrich_assets(ing.assets)
+
     p("Hazard extraction", 0.25)
-    haz, meta = hazards.extract_hazards(ing.assets, scenario)
+    haz, meta = hazards.extract_hazards(enriched, scenario)
+    meta.update(exposure_meta)
+    meta["quality_gate"] = "SCREENING ONLY" if meta["confidence"] < 0.8 else "LIMITED"
 
     p("Fragility & risk scoring", 0.7)
-    scored = fragility.score_assets(ing.assets, haz)
+    scored = fragility.score_assets(enriched, haz)
     summary = fragility.portfolio_summary(scored, meta)
 
     p("Report generation", 0.85)

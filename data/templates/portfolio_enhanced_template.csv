@@ -1,0 +1,2 @@
+asset_id,name,address,country,province,state,city,postal_code,lat,lon,asset_class,occupancy,replacement_value,contents_value,business_interruption_value,building_area_m2,building_height_m,stories,year_built,construction_type,foundation_type,roof_type,wall_type,first_floor_elevation_m,basement,basement_depth_m,critical_equipment_value,hvac_type,backup_power,flood_protection,notes
+PK-EXAMPLE-001,Example facility,,,,Punjab,Lahore,,31.5204,74.3587,industrial,warehouse,50000000,,,,,,,,,,,,,,,,,,

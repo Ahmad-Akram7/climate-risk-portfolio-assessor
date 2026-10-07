@@ -48,6 +48,14 @@ ALIASES = {
     "value": "replacement_value", "tiv": "replacement_value",
 }
 REQUIRED = ["asset_id", "name", "lat", "lon", "state", "asset_class", "replacement_value"]
+OPTIONAL = [
+    "address", "country", "province", "city", "postal_code", "occupancy",
+    "contents_value", "business_interruption_value", "building_area_m2",
+    "building_height_m", "stories", "year_built", "construction_type",
+    "foundation_type", "roof_type", "wall_type", "first_floor_elevation_m",
+    "basement", "basement_depth_m", "critical_equipment_value", "hvac_type",
+    "backup_power", "flood_protection", "notes",
+]
 
 
 def parse_money(v: Any) -> float:
@@ -70,6 +78,30 @@ class Asset(BaseModel):
     state: str
     asset_class: str
     replacement_value: float = Field(gt=0)
+    address: str | None = None
+    country: str | None = None
+    province: str | None = None
+    city: str | None = None
+    postal_code: str | None = None
+    occupancy: str | None = None
+    contents_value: float | None = None
+    business_interruption_value: float | None = None
+    building_area_m2: float | None = None
+    building_height_m: float | None = None
+    stories: float | None = None
+    year_built: int | None = None
+    construction_type: str | None = None
+    foundation_type: str | None = None
+    roof_type: str | None = None
+    wall_type: str | None = None
+    first_floor_elevation_m: float | None = None
+    basement: bool | None = None
+    basement_depth_m: float | None = None
+    critical_equipment_value: float | None = None
+    hvac_type: str | None = None
+    backup_power: bool | None = None
+    flood_protection: str | None = None
+    notes: str | None = None
 
     @field_validator("asset_id", "name", mode="before")
     @classmethod
@@ -162,7 +194,8 @@ def ingest(source) -> IngestionResult:
     good: list[dict] = []
 
     # --- schema validation (row level) ---
-    for idx, rec in enumerate(raw[REQUIRED].to_dict("records")):
+    input_columns = REQUIRED + [c for c in OPTIONAL if c in raw.columns]
+    for idx, rec in enumerate(raw[input_columns].to_dict("records")):
         try:
             good.append(Asset(**rec).model_dump() | {"_row": idx + 2})
         except ValidationError as e:

@@ -98,17 +98,9 @@ tests/               API and dashboard checks
 Github/              clean export prepared for publication
 ```
 
-## Comparison charts
+## Comparison report
 
-### Four-asset loss comparison
-
-![Four-asset scenario loss comparison](docs/charts/loss-comparison.svg)
-
-### 21-asset output coverage
-
-![21-asset output coverage comparison](docs/charts/coverage-comparison.svg)
-
-The detailed comparison brief remains in the local assessment outputs because it contains portfolio-level test details.
+The Pakistan test comparison is available in [`outputs/pakistan_two_report_brief.md`](outputs/pakistan_two_report_brief.md). It covers the four-asset offline fixture, the 21-asset coverage test, parser checks, and current hazard gaps.
 
 ## License
 

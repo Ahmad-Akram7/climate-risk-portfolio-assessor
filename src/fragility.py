@@ -88,6 +88,9 @@ def portfolio_summary(df: pd.DataFrame, meta: dict) -> dict:
                            "dominant_hazard", "expected_loss_usd"]].to_dict("records"),
         "data_confidence": meta["confidence"],
         "scenario": meta["scenario"],
-        "method_note": ("Scenario-based expected loss from HAZUS-inspired sigmoid curves; not an actuarial annual "
-                        "loss estimate. Curve parameters are uncalibrated defaults."),
+        "model_tier": meta.get("model_tier", "SCREENING"),
+        "quality_gate": meta.get("quality_gate", "SCREENING ONLY"),
+        "method_note": ("Current release is a transparent screening model. It uses documented hazard-specific "
+                        "screening functions and asset-class modifiers; it is not a calibrated catastrophe or "
+                        "actuarial annual-loss model. Missing exposure attributes remain explicit."),
     }
