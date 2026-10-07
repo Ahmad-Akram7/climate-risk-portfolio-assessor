@@ -4,6 +4,14 @@ Climate Risk Portfolio Assessor (CRPA) reads an asset CSV and produces multi-haz
 
 When no live layers or API keys are available, CRPA uses synthetic demo values. Each result records its source and confidence so demo values remain separate from values backed by a real dataset.
 
+## Product preview
+
+![CRPA overview](docs/screenshots/crpa-overview.jpg)
+
+![CRPA pipeline](docs/screenshots/pipeline.svg)
+
+The short product preview is also available as [`brag.mp4`](../brag-output-2026-10-07-120000/brag.mp4) in the development workspace.
+
 ## Start the app
 
 On Linux or macOS:
