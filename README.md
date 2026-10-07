@@ -1,6 +1,6 @@
 # Climate Risk Portfolio Assessor
 
-Climate Risk Portfolio Assessor (CRPA) reads an asset CSV and produces multi-hazard screening scores, scenario loss estimates, a Streamlit dashboard, and a Markdown report. It runs locally and is released under the MIT license.
+Climate Risk Portfolio Assessor (CRPA) reads an asset CSV and produces multi-hazard screening scores, scenario loss estimates, a Streamlit dashboard, and a Markdown report. It runs locally and is distributed under a proprietary commercial license.
 
 When no live layers or API keys are available, CRPA uses synthetic demo values. Each result records its source and confidence so demo values remain separate from values backed by a real dataset.
 
@@ -100,4 +100,4 @@ Github/              clean export prepared for publication
 
 ## License
 
-MIT. Third-party datasets keep their own licenses and attribution requirements.
+This repository is proprietary and all rights are reserved. Use, resale, redistribution, and derivative products require a written commercial license. Third-party datasets keep their own licenses and attribution requirements. See [`LICENSE`](LICENSE).
