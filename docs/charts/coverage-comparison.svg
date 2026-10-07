@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="460" viewBox="0 0 900 460">
+<rect width="900" height="460" fill="#07111f"/><text x="55" y="55" fill="#f4f7fb" font-family="Arial" font-size="28" font-weight="700">21-asset test coverage</text><text x="55" y="83" fill="#9dbcf5" font-family="Arial" font-size="16">Rows present in the actual output vs missing rows</text>
+<line x1="100" y1="370" x2="830" y2="370" stroke="#6b7890"/><line x1="100" y1="120" x2="100" y2="370" stroke="#6b7890"/>
+<rect x="245" y="227" width="150" height="143" rx="8" fill="#48d6a0"/><rect x="535" y="263" width="150" height="107" rx="8" fill="#f2b84b"/>
+<g fill="#f4f7fb" font-family="Arial" font-size="20" text-anchor="middle"><text x="320" y="211">12</text><text x="610" y="247">9</text><text x="320" y="405">Present</text><text x="610" y="405">Missing</text></g>
+<text x="55" y="145" fill="#9dbcf5" font-family="Arial" font-size="14">21</text><text x="55" y="270" fill="#9dbcf5" font-family="Arial" font-size="14">10</text><text x="55" y="375" fill="#9dbcf5" font-family="Arial" font-size="14">0</text>
+</svg>

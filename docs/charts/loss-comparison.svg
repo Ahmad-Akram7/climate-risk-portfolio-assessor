@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="460" viewBox="0 0 900 460">
+<rect width="900" height="460" fill="#07111f"/><text x="55" y="55" fill="#f4f7fb" font-family="Arial" font-size="28" font-weight="700">Four-asset scenario loss</text><text x="55" y="83" fill="#9dbcf5" font-family="Arial" font-size="16">Downloaded report vs offline expected, USD millions</text>
+<line x1="100" y1="370" x2="830" y2="370" stroke="#6b7890"/><line x1="100" y1="120" x2="100" y2="370" stroke="#6b7890"/>
+<g fill="#4b8df8"><rect x="245" y="135" width="150" height="235" rx="8"/><rect x="535" y="176" width="150" height="194" rx="8"/></g>
+<g fill="#f4f7fb" font-family="Arial" font-size="20" text-anchor="middle"><text x="320" y="120">$3.753M</text><text x="610" y="161">$3.099M</text><text x="320" y="405">Downloaded</text><text x="610" y="405">Offline expected</text></g>
+<text x="55" y="145" fill="#9dbcf5" font-family="Arial" font-size="14">4.0</text><text x="55" y="270" fill="#9dbcf5" font-family="Arial" font-size="14">2.0</text><text x="55" y="375" fill="#9dbcf5" font-family="Arial" font-size="14">0</text>
+</svg>

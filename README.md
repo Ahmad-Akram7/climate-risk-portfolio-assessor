@@ -98,6 +98,18 @@ tests/               API and dashboard checks
 Github/              clean export prepared for publication
 ```
 
+## Comparison charts
+
+### Four-asset loss comparison
+
+![Four-asset scenario loss comparison](docs/charts/loss-comparison.svg)
+
+### 21-asset output coverage
+
+![21-asset output coverage comparison](docs/charts/coverage-comparison.svg)
+
+The detailed comparison brief remains in the local assessment outputs because it contains portfolio-level test details.
+
 ## License
 
 This repository is proprietary and all rights are reserved. Use, resale, redistribution, and derivative products require a written commercial license. Third-party datasets keep their own licenses and attribution requirements. See [`LICENSE`](LICENSE).
