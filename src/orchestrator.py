@@ -41,7 +41,7 @@ def run_assessment(source, scenario: str = "current", use_llm: bool = True, fram
     meta["flood"] = flood_meta
 
     p("Fragility & risk scoring", 0.7)
-    scored = fragility.score_assets(enriched, haz)
+    scored = fragility.score_assets(enriched, haz.merge(flood[["asset_id", "flood_damage_ratio"]], on="asset_id", how="left"))
     scored = scored.merge(flood, on="asset_id", how="left")
     summary = fragility.portfolio_summary(scored, meta)
 

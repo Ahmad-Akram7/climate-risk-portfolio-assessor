@@ -50,7 +50,10 @@ def score_assets(assets: pd.DataFrame, hazards: pd.DataFrame) -> pd.DataFrame:
     surv = np.ones(len(df))
     loss_ratio = np.zeros(len(df))
     for hz, c in CURVES.items():
-        p = sigmoid_damage(df[c["col"]].values, c["k"], c["x0"])
+        if hz == "flood" and "flood_damage_ratio" in df:
+            p = df["flood_damage_ratio"].fillna(0.0).clip(0.0, 1.0).values
+        else:
+            p = sigmoid_damage(df[c["col"]].values, c["k"], c["x0"])
         df[f"p_{hz}"] = np.round(p, 4)
         surv *= (1 - p)
         loss_ratio += p * c["max_loss"]
