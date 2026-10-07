@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from . import config, fragility, hazards, ingestion, reporting
+from .flood_engine import calculate as calculate_flood
 from .exposure import enrich_assets
 
 
@@ -36,8 +37,12 @@ def run_assessment(source, scenario: str = "current", use_llm: bool = True, fram
     meta.update(exposure_meta)
     meta["quality_gate"] = "SCREENING ONLY" if meta["confidence"] < 0.8 else "LIMITED"
 
+    flood, flood_meta = calculate_flood(enriched, haz, meta)
+    meta["flood"] = flood_meta
+
     p("Fragility & risk scoring", 0.7)
     scored = fragility.score_assets(enriched, haz)
+    scored = scored.merge(flood, on="asset_id", how="left")
     summary = fragility.portfolio_summary(scored, meta)
 
     p("Report generation", 0.85)

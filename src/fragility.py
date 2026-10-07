@@ -93,4 +93,7 @@ def portfolio_summary(df: pd.DataFrame, meta: dict) -> dict:
         "method_note": ("Current release is a transparent screening model. It uses documented hazard-specific "
                         "screening functions and asset-class modifiers; it is not a calibrated catastrophe or "
                         "actuarial annual-loss model. Missing exposure attributes remain explicit."),
+        "flood_aal_usd": round(float(df["flood_aal_usd"].sum()) if "flood_aal_usd" in df else 0.0, 2),
+        "flood_pml_100_usd": round(float(df["flood_pml_100_usd"].sum()) if "flood_pml_100_usd" in df else 0.0, 2),
+        "flood_pml_500_usd": round(float(df["flood_pml_500_usd"].sum()) if "flood_pml_500_usd" in df else 0.0, 2),
     }
