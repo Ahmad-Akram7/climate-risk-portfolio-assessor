@@ -1,0 +1,12 @@
+asset_id,name,lat,lon,state,asset_class,replacement_value
+SE-001,Copenhagen Office,55.6761,12.5683,Denmark,office,30000000
+SE-002,Malmö Industry,55.5925,12.9825,Denmark,industrial,25000000
+SE-003,Gothenburg Port,57.7086,11.9645,Sweden,industrial,35000000
+NO-001,Oslo Office,59.9139,10.7522,Norway,office,28000000
+NO-002,Bergen Harbor,60.3913,5.3221,Norway,harbor,32000000
+FI-001,Helsinki Office,60.1699,24.9384,Finland,office,22000000
+FI-002,Tampere Industry,61.4974,23.7708,Finland,industrial,20000000
+DE-001,Hamburg Office,53.5511,9.9937,Germany,office,40000000
+DE-002,Bremen Industry,53.0751,8.8069,Germany,industrial,35000000
+NL-001,Amsterdam Office,52.3676,4.9041,Netherlands,office,38000000
+NL-002,Rotterdam Industry,51.9244,4.4777,Netherlands,industrial,45000000
