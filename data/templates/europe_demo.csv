@@ -1,0 +1,11 @@
+asset_id,name,lat,lon,state,asset_class,replacement_value
+EU-001,London Office,51.5074,-0.1278,UK,office,50000000
+EU-002,Amsterdam Office,52.3676,4.9041,Netherlands,office,35000000
+EU-003,Rotterdam Industrial,51.9244,4.4777,Netherlands,industrial,80000000
+EU-004,Paris Office,48.8566,2.3522,France,office,60000000
+EU-005,Milan Retail,45.4642,9.1900,Italy,retail,45000000
+EU-006,Barcelona Hotel,41.3874,2.1686,Spain,hotel,40000000
+EU-007,Venice Hotel,45.4408,12.3155,Italy,hotel,55000000
+EU-008,Cologne Industrial,50.9375,6.9603,Germany,industrial,30000000
+EU-009,Madrid Office,40.4168,-3.7038,Spain,office,50000000
+EU-010,Lisbon Office,38.7223,-9.1393,Portugal,office,30000000

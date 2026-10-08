@@ -1,0 +1,11 @@
+asset_id,name,lat,lon,state,asset_class,replacement_value
+FR-001,Marseille Office,43.2965,5.3698,France,office,45000000
+FR-002,Nice Hotel,43.6982,7.2658,France,hotel,35000000
+FR-003,Toulouse Industrial,43.6047,1.4442,France,industrial,60000000
+FR-004,Bordeaux Retail,44.8378,-0.5792,France,retail,50000000
+FR-005,Lyon Office,45.7640,4.8357,France,office,40000000
+IT-001,Rome Office,41.8958,12.4821,Italy,office,55000000
+IT-002,Milan Retail,45.4642,9.1900,Italy,retail,45000000
+IT-003,Napoli Hotel,40.8522,14.2466,Italy,hotel,30000000
+ES-001,Barcelona Hotel,41.3874,2.1686,Spain,hotel,40000000
+ES-002,Valencia Retail,39.4699,-0.3763,Spain,retail,35000000
