@@ -6,13 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "climate-risk-portfolio-assessor"
 version = "1.0.0"
 description = "Climate Risk Portfolio Assessor - Multi-hazard risk assessment for infrastructure"
-requires-python = ">=3.11"
-
+requires-python = ">=3.12,<3.13"
 dependencies = [
 "fastapi>=0.110",
 "uvicorn>=0.27",
-"pandas>=2.1",
-"numpy>=1.26",
+"pandas>=2.2,<3.0",
+"numpy>=2.4,<2.5",
 "pydantic>=2.5",
 "requests>=2.31",
 "python-multipart>=0.0.9",
