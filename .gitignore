@@ -1,10 +1,34 @@
+# Secrets
 .env
-.venv/
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Caches
 .cache/
-.streamlit/
+.graphflow-cache/
+graphflow-out/
+
+# Generated output
 outputs/
-data/hazards/*.tif
-data/hazards/*.gpkg
-data/hazards/elevation_dem_tiles/
+brag-output-*/
+
+# Local research/prospecting
+climate-risk-prospects.xlsx
+
+# Local geospatial datasets
+data/hazards/
+
+# Temporary/local folders
+Github/
+
+# Windows artifact
+NUL
