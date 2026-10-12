@@ -7,6 +7,8 @@ import time
 import requests
 
 from . import config
+from .hazard_registry import HAZARDS as HAZARD_SPECS
+from .hazard_registry import MITIGATION
 
 
 def _llm_error(exc: Exception, response: requests.Response | None = None) -> str:
@@ -56,7 +58,7 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
     hz = sorted(s["mean_hazard_probability"].items(), key=lambda kv: -kv[1])
     conc = list(s["state_concentration_pct"].items())[:3]
     top = s["top_assets"][:3]
-    L = [f"# Physical Climate Risk Assessment", "",
+    L = ["# Physical Climate Risk Assessment", "",
          f"*Scenario: {meta['scenario_label']} - generated {time.strftime('%Y-%m-%d')}*", "",
          "## 1. Executive summary", "",
          f"The portfolio contains {s['n_assets']} assets with a total replacement value of "
@@ -76,6 +78,24 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
         L.append(f"- {h}: " + ", ".join(f"{k} ({v} assets)" for k, v in d.items()))
     L += ["", "## 3. Material risk findings", "",
           "Average damage probability by hazard: " + ", ".join(f"{h} {p:.1%}" for h, p in hz) + ".", ""]
+    hs = s.get("hazard_summary", {})
+    if hs:
+        L.append("Severity by hazard (assets rated High or Critical / assets with usable data):")
+        L.append("")
+        for h, d in hs.items():
+            usable = d["status_counts"]["assessed"] + d["status_counts"]["illustrative"]
+            if usable == 0:
+                L.append(f"- {HAZARD_SPECS[h].label}: not assessed (no data layer available). This is not a low-risk finding.")
+                continue
+            hi = d["severity_counts"]["High"] + d["severity_counts"]["Critical"]
+            ill = d["status_counts"]["illustrative"]
+            note = f"; {ill} on synthetic (illustrative) input" if ill else ""
+            L.append(f"- {HAZARD_SPECS[h].label}: {hi} of {usable}{note}.")
+        L.append("")
+    if s.get("low_risk_verified_assets") is not None:
+        L.append(f"{s['low_risk_verified_assets']} asset(s) have a Low rating backed by real data on every modelled hazard; "
+                 "other Low ratings rest on synthetic or partial data and are unverified.")
+        L.append("")
     if conc:
         L.append("Geographic concentration: " + ", ".join(f"{st} {p}% of value" for st, p in conc) + ".")
         L.append("")
@@ -86,18 +106,20 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
                  f"{t['risk_tier']}, driven by {t['dominant_hazard']}, modelled loss {_usd(t['expected_loss_usd'])}.")
     L += ["", "## 4. Recommended mitigation strategies", ""]
     dom = max(s["dominant_hazard_counts"].items(), key=lambda kv: kv[1])[0] if s["dominant_hazard_counts"] else "none"
-    tips = {"flood": "elevate critical equipment, install flood barriers, review flood insurance and drainage.",
-            "wind": "upgrade roof and envelope connections, shutters/impact glazing, and wind-rated rooftop equipment.",
-            "wildfire": "create defensible space, use ember-resistant vents and Class A roofing, and review brigade access.",
-            "heat": "review cooling capacity and redundancy, and plan for grid-outage resilience.",
-            "none": "no dominant hazard identified; maintain monitoring."}
-    L.append(f"The most common dominant hazard is {dom}: {tips.get(dom, tips['none'])} "
-             "Prioritise Critical and High tier assets and reassess after mitigation.")
+    if dom in MITIGATION:
+        L.append(f"The most common dominant hazard is {dom}: " + " ".join(MITIGATION[dom]) +
+                 " Prioritise Critical and High tier assets and reassess after mitigation.")
+    elif dom == "not_assessed":
+        L.append("No hazard could be assessed for most assets. Add hazard data before drawing conclusions.")
+    else:
+        L.append("No dominant hazard identified; maintain monitoring.")
     L += ["", "## 5. Framework alignment", ""]
     for f in frameworks:
         L.append(f"- {f}: {FRAMEWORKS.get(f, f)}.")
     L += ["", "## 6. Limitations and caveats", "",
           "Fragility parameters are uncalibrated defaults; the loss figure is scenario-based, not annual expected loss. "
+          "Drought (dry-spell length) and landslide are hazard-only indices with no damage function and are not in the loss figure. "
+          "The risk-score range in the outputs is a +/-15% intensity sensitivity, not a statistical confidence interval. "
           "Coordinates are treated as points; building-level attributes (age, construction, floor height) are not used. "
           "Future scenarios apply simple parametric uplifts rather than downscaled climate-model output. "
           "Regulatory requirements change; confirm current applicability of each framework with counsel.", "",
@@ -105,8 +127,24 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
     return "\n".join(L)
 
 
+def _compact_context(summary: dict, meta: dict, limit: int = 12000) -> str:
+    """Valid JSON under `limit` characters. Drops detail in stages instead of cutting the string mid-structure."""
+    summ = dict(summary)
+    summ["state_concentration_pct"] = dict(list(summ.get("state_concentration_pct", {}).items())[:10])
+    m = {k: v for k, v in meta.items() if k in ("scenario", "scenario_label", "confidence", "source_counts",
+                                                "hazards_not_assessed", "offline_mode", "model_tier", "quality_gate")}
+    for drop in (None, "top_assets", "hazard_summary", "source_counts"):
+        if drop:
+            summ.pop(drop, None)
+            m.pop(drop, None)
+        out = json.dumps({"summary": summ, "data_meta": m}, default=str)
+        if len(out) <= limit:
+            return out
+    return out[:limit]
+
+
 def _llm_prompt(summary: dict, meta: dict, frameworks: list[str]) -> list[dict]:
-    ctx = json.dumps({"summary": summary, "data_meta": meta}, default=str)[:12000]
+    ctx = _compact_context(summary, meta)
     sys = ("You are a climate-risk analyst writing a screening-level physical climate risk report. Use ONLY the figures in "
            "the JSON provided; never invent numbers, sources or regulations. If data confidence is below 0.8 say so "
            "prominently. Write in prose with markdown headings.")

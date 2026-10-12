@@ -3,7 +3,6 @@ import os
 
 os.environ["CRPA_OFFLINE"] = "1"
 
-import pandas as pd
 import pytest
 
 from src import fragility, hazards, ingestion

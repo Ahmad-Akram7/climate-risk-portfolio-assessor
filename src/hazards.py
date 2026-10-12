@@ -24,8 +24,13 @@ import pandas as pd
 import requests
 
 from . import config
+from .hazard_registry import source_weight as _registry_source_weight
 
+# Core hazards that always have a value (real or synthetic) and feed the overall data-confidence score.
 HAZARDS = ["flood", "wind", "heat", "wildfire", "elevation"]
+# Optional hazards: real data or nothing. They are never synthesised; missing data is reported as 'not assessed'.
+EXTRA_HAZARDS = ["drought", "landslide"]
+US_COVERAGE = (17.5, 72.0, -180.0, -64.0)  # lat_min, lat_max, lon_min, lon_max; the coastline polyline below is US-only
 
 # Flood-zone -> design flood depth proxy (m) used by the fragility engine.
 FLOOD_DEPTH_M = {"VE": 2.5, "V": 2.5, "AE": 1.5, "A": 1.2, "AO": 1.0, "AH": 1.0, "AR": 0.8,
@@ -300,20 +305,46 @@ def api_elevation(ctx: RunContext, lat, lon):
     return v
 
 
+def mean_annual_max_cdd(dates, precip_mm, dry_threshold_mm: float = 1.0) -> float | None:
+    """ETCCDI CDD: mean over years of the longest run of consecutive dry days (precip < threshold).
+
+    Missing precipitation values are treated as unknown (they break a run); years with <300 valid days are skipped.
+    Returns None if no year is usable.
+    """
+    s = pd.Series(pd.to_numeric(pd.Series(precip_mm), errors="coerce").values, index=pd.to_datetime(pd.Series(dates)))
+    maxima = []
+    for _, yr in s.groupby(s.index.year):
+        if yr.notna().sum() < 300:
+            continue
+        run = best = 0
+        for v in yr.values:
+            run = run + 1 if (v == v and v < dry_threshold_mm) else 0
+            best = max(best, run)
+        maxima.append(best)
+    return float(np.mean(maxima)) if maxima else None
+
+
 def api_openmeteo_extremes(ctx: RunContext, lat, lon):
-    """One request -> (10-yr max daily gust m/s, 10-yr max daily temp C). ERA5 reanalysis, ~10 km grid."""
-    key = f"om:{lat:.1f},{lon:.1f}"
+    """One request -> (10-yr max daily gust m/s, 10-yr max daily temp C, mean annual max dry-spell days or None).
+
+    ERA5 reanalysis, ~10-25 km grid, 2015-2024.
+    """
+    key = f"om3:{lat:.1f},{lon:.1f}"
     if (v := cache_get(key)) is not None:
         return tuple(v)
     r = _get(ctx, "open-meteo-archive", "https://archive-api.open-meteo.com/v1/archive", params={
         "latitude": f"{lat:.3f}", "longitude": f"{lon:.3f}", "start_date": "2015-01-01", "end_date": "2024-12-31",
-        "daily": "wind_gusts_10m_max,temperature_2m_max", "wind_speed_unit": "ms", "timezone": "UTC"})
+        "daily": "wind_gusts_10m_max,temperature_2m_max,precipitation_sum", "wind_speed_unit": "ms", "timezone": "UTC"})
     if r is None:
         return None
     try:
         d = r.json()["daily"]
-        out = (float(np.nanmax(np.array(d["wind_gusts_10m_max"], dtype=float))),
-               float(np.nanmax(np.array(d["temperature_2m_max"], dtype=float))))
+        gust = float(np.nanmax(np.array(d["wind_gusts_10m_max"], dtype=float)))
+        tmax = float(np.nanmax(np.array(d["temperature_2m_max"], dtype=float)))
+        if not (math.isfinite(gust) and math.isfinite(tmax)):
+            return None
+        cdd = mean_annual_max_cdd(d["time"], d["precipitation_sum"]) if "precipitation_sum" in d else None
+        out = (gust, tmax, cdd)
     except Exception:
         return None
     cache_put(key, list(out))
@@ -382,7 +413,8 @@ def api_firms(ctx: RunContext, lat, lon):
 def _extract_one(a: dict, ctx: RunContext) -> dict:
     lat, lon, st = a["lat"], a["lon"], a["state"]
     syn = synthetic(lat, lon, st)
-    out = dict(asset_id=a["asset_id"], coast_km=syn["coast_km"])
+    out = dict(asset_id=a["asset_id"], coast_km=syn["coast_km"],
+               coast_km_valid=bool(US_COVERAGE[0] <= lat <= US_COVERAGE[1] and US_COVERAGE[2] <= lon <= US_COVERAGE[3]))
     src = {}
 
     # FLOOD
@@ -448,15 +480,29 @@ def _extract_one(a: dict, ctx: RunContext) -> dict:
     else:
         out["wildfire_score"], src["wildfire"] = syn["wildfire_score"], "Synthetic_Wildfire"
 
-    for h in HAZARDS:
+    # DROUGHT (dry-spell indicator): real data or nothing - never synthetic.
+    om = om or api_openmeteo_extremes(ctx, lat, lon)
+    if om and len(om) > 2 and om[2] is not None:
+        out["drought_cdd_days"], src["drought"] = om[2], "OpenMeteo_ERA5_API"
+    else:
+        out["drought_cdd_days"], src["drought"] = float("nan"), "Unavailable"
+
+    # LANDSLIDE: optional local susceptibility raster (WGS84, 0-1 or 0-100). Real data or nothing.
+    v = local_raster("landslide_susceptibility", lat, lon)
+    if v is not None and math.isfinite(v) and v >= 0:
+        out["landslide_index"] = float(min(100.0, v * 100 if v <= 1 else v))
+        src["landslide"] = "Local_Landslide_Susceptibility_Raster"
+    else:
+        out["landslide_index"], src["landslide"] = float("nan"), "Unavailable"
+
+    for h in HAZARDS + EXTRA_HAZARDS:
         out[f"src_{h}"] = src[h]
     return out
 
 
 def source_weight(label: str) -> float:
-    if label.startswith("Synthetic"):
-        return 0.0
-    return 0.5 if "+" in label else 1.0
+    """Source-quality weight (see hazard_registry.SOURCE_QUALITY). Judgement rubric, not a statistical confidence."""
+    return _registry_source_weight(label)
 
 
 def apply_scenario(h: pd.DataFrame, scenario: str) -> pd.DataFrame:
@@ -468,7 +514,13 @@ def apply_scenario(h: pd.DataFrame, scenario: str) -> pd.DataFrame:
     depth = h["flood_zone"].map(FLOOD_DEPTH_M).fillna(0.0)
     if "flood_depth_m_raw" in h:
         depth = h["flood_depth_m_raw"].where(h["flood_depth_m_raw"].notna(), depth)
-    h["flood_depth_m"] = depth + np.where(h["flood_zone"] != "X", s["slr"], 0.0)
+    # Sea-level rise raises flood depth only at coastal sites. The coastline model is US-only, so outside the
+    # US only explicit coastal zones (V/VE) qualify. Inland river-flood zones get no SLR uplift.
+    near_coast = (h["coast_km"] <= 25) & h.get("coast_km_valid", False) if "coast_km" in h else False
+    low = h["elevation_m"] <= 5 if "elevation_m" in h else False
+    coastal = h["flood_zone"].isin(["VE", "V"]) | (near_coast & low)
+    h["slr_applied"] = (coastal & (h["flood_zone"] != "X")).astype(bool)
+    h["flood_depth_m"] = depth + np.where(h["slr_applied"], s["slr"], 0.0)
     h = h.drop(columns=["flood_depth_m_raw"], errors="ignore")
     return h
 
@@ -490,7 +542,9 @@ def extract_hazards(assets: pd.DataFrame, scenario: str = "current", ctx: RunCon
         "confidence": round(float(h["data_confidence"].mean()), 3),
         "apis_disabled_after_failures": ctx.disabled_apis(),
         "offline_mode": ctx.offline,
-        "source_counts": {x: h[f"src_{x}"].value_counts().to_dict() for x in HAZARDS},
+        "source_counts": {x: h[f"src_{x}"].value_counts().to_dict() for x in HAZARDS + EXTRA_HAZARDS},
+        "hazards_not_assessed": [x for x in EXTRA_HAZARDS if h[f"src_{x}"].eq("Unavailable").all()],
+        "slr_assets": int(h["slr_applied"].sum()),
     }
     return h, meta
 
@@ -504,7 +558,8 @@ def layer_status() -> dict:
     fema = sorted(p.stem.replace("fema_nfhl_", "") for p in config.HAZARD_DIR.glob("fema_nfhl_*.gpkg"))
     elevation_tiles = list((config.HAZARD_DIR / "elevation_dem_tiles").glob("*.tif"))
     rasters = {n: (config.HAZARD_DIR / f"{n}.tif").exists()
-               for n in ("flood_depth_jrc_rp20y", "elevation_dem", "wind_gust_max_ms", "heat_max_c", "wildfire_burn_prob")}
+               for n in ("flood_depth_jrc_rp20y", "elevation_dem", "wind_gust_max_ms", "heat_max_c", "wildfire_burn_prob",
+                         "landslide_susceptibility")}
     rasters["elevation_dem"] = rasters["elevation_dem"] or bool(elevation_tiles)
     try:
         import geopandas  # noqa: F401
