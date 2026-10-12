@@ -9,6 +9,8 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+_BLANK = {"", "nan", "none", "null", "n/a", "na", "unknown"}
+
 from .config import MAX_ASSETS
 
 ASSET_CLASSES = [
@@ -65,7 +67,7 @@ def parse_money(v: Any) -> float:
     s = str(v).strip().replace("$", "").replace(",", "").replace("_", "").lower()
     m = re.fullmatch(r"([0-9]*\.?[0-9]+)\s*([kmb])?", s)
     if not m:
-        raise ValueError(f"cannot parse replacement value '{v}'")
+        raise ValueError(f"cannot parse money value '{v}'")
     mult = {"k": 1e3, "m": 1e6, "b": 1e9, None: 1.0}[m.group(2)]
     return float(m.group(1)) * mult
 
@@ -73,8 +75,8 @@ def parse_money(v: Any) -> float:
 class Asset(BaseModel):
     asset_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
-    lat: float = Field(ge=-90, le=90)
-    lon: float = Field(ge=-180, le=180)
+    lat: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    lon: float = Field(ge=-180, le=180, allow_inf_nan=False)
     state: str
     asset_class: str
     replacement_value: float = Field(gt=0)
@@ -84,24 +86,39 @@ class Asset(BaseModel):
     city: str | None = None
     postal_code: str | None = None
     occupancy: str | None = None
-    contents_value: float | None = None
-    business_interruption_value: float | None = None
-    building_area_m2: float | None = None
-    building_height_m: float | None = None
-    stories: float | None = None
-    year_built: int | None = None
+    contents_value: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    business_interruption_value: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    building_area_m2: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    building_height_m: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    stories: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    year_built: int | None = Field(default=None, ge=1600, le=2100)
     construction_type: str | None = None
     foundation_type: str | None = None
     roof_type: str | None = None
     wall_type: str | None = None
-    first_floor_elevation_m: float | None = None
+    first_floor_elevation_m: float | None = Field(default=None, ge=-50, le=1000, allow_inf_nan=False)
     basement: bool | None = None
-    basement_depth_m: float | None = None
-    critical_equipment_value: float | None = None
+    basement_depth_m: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    critical_equipment_value: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     hvac_type: str | None = None
     backup_power: bool | None = None
     flood_protection: str | None = None
     notes: str | None = None
+
+    @field_validator("contents_value", "business_interruption_value", "critical_equipment_value", mode="before")
+    @classmethod
+    def _opt_money(cls, v):
+        return None if v is None else parse_money(v)
+
+    @field_validator("year_built", mode="before")
+    @classmethod
+    def _year(cls, v):
+        if v is None:
+            return v
+        f = float(str(v).strip())  # accepts "1998" and "1998.0"
+        if f != int(f):
+            raise ValueError("year_built must be a whole year")
+        return int(f)
 
     @field_validator("asset_id", "name", mode="before")
     @classmethod
@@ -196,6 +213,8 @@ def ingest(source) -> IngestionResult:
     # --- schema validation (row level) ---
     input_columns = REQUIRED + [c for c in OPTIONAL if c in raw.columns]
     for idx, rec in enumerate(raw[input_columns].to_dict("records")):
+        # Blank optional cells mean "not supplied", not an invalid value.
+        rec = {k: (None if k in OPTIONAL and str(v).strip().lower() in _BLANK else v) for k, v in rec.items()}
         try:
             good.append(Asset(**rec).model_dump() | {"_row": idx + 2})
         except ValidationError as e:

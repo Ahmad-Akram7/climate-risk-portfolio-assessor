@@ -1,7 +1,6 @@
 """Streamlit dashboard.  Run:  streamlit run app/dashboard.py"""
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
@@ -16,12 +15,13 @@ import plotly.express as px
 import pydeck as pdk
 import streamlit as st
 
-from src import config, fragility, hazards
+from src import config, fragility, hazards, viz
+from src.hazard_registry import ALL_HAZARDS, HAZARDS, NOT_ASSESSED, SEVERITY_LEVELS
 from src.orchestrator import run_assessment
 
 TEMPLATE = ROOT / "data" / "templates" / "portfolio_upload_template.csv"
-TIER_COLORS = {"Critical": "#FF453A", "High": "#FF9F0A", "Medium": "#FFD60A", "Low": "#30D158"}
-TIER_RGB = {"Critical": [255, 69, 58], "High": [255, 159, 10], "Medium": [255, 214, 10], "Low": [48, 209, 88]}
+# Severity uses a neutral ramp; hue is reserved for hazard identity (see src/hazard_registry.py).
+TIER_COLORS = viz.SEVERITY_COLORS
 
 st.set_page_config(page_title="CRPA · Climate Risk Intelligence", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
@@ -48,6 +48,7 @@ div[data-testid="stMetricValue"]{color:#f4f8fc;font-size:1.65rem;font-weight:750
 .stTabs [aria-selected="true"]{color:#60a5fa}
 @media (max-width: 800px){.block-container{padding:1.25rem 1rem 3rem}.crpa-hero h1{font-size:1.7rem!important}}
 </style>""", unsafe_allow_html=True)
+st.markdown(viz.CSS, unsafe_allow_html=True)
 
 
 def usd(x: float) -> str:
@@ -101,7 +102,7 @@ if run:
 
 res = st.session_state.get("result")
 st.markdown("<div class='crpa-hero'><h1>Climate Risk Portfolio Assessor</h1><p>Screen asset portfolios across flood, wind, heat and wildfire exposure with transparent source provenance.</p></div>", unsafe_allow_html=True)
-tabs = st.tabs(["Overview", "Map", "Assets", "AI Report", "Setup Wizard"])
+tabs = st.tabs(["Overview", "Map", "Hazard Risk", "Assets", "AI Report", "Setup Wizard"])
 
 if not res:
     with tabs[0]:
@@ -114,23 +115,32 @@ else:
     if meta["confidence"] < 0.3:
         st.warning("Hazard data is mostly **synthetic demo data**. Results illustrate the method only. "
                    "Add FEMA/DEM layers or API keys (Setup Wizard) for real inputs.")
+    if s.get("hazards_not_assessed"):
+        st.info("Not assessed (no data, which is not the same as low risk): "
+                + ", ".join(HAZARDS[h].label for h in s["hazards_not_assessed"]) + ".")
     with tabs[0]:
         c = st.columns(4)
         c[0].metric("Assets", s["n_assets"])
         c[1].metric("Total value", usd(s["total_replacement_value_usd"]))
-        c[2].metric("Avg risk score", s["mean_risk_score"])
+        c[2].metric("Avg risk score", s["mean_risk_score"] if s["mean_risk_score"] is not None else "n/a")
         c[3].metric("High + Critical", s["tier_counts"]["High"] + s["tier_counts"]["Critical"])
-        c = st.columns(2)
+        c = st.columns(3)
         c[0].metric("Scenario expected loss", usd(s["total_expected_loss_usd"]),
                     f"{s['expected_loss_pct_of_value']}% of value", delta_color="off")
         c[1].metric("Value-weighted risk", s["value_weighted_risk_score"])
+        c[2].metric("Low risk, verified", s["low_risk_verified_assets"],
+                    help="Low rating backed by real data on every modelled hazard. Other Low ratings are unverified.")
         a, b = st.columns(2)
         pie = px.pie(names=list(s["tier_counts"]), values=list(s["tier_counts"].values()), hole=.55,
                      color=list(s["tier_counts"]), color_discrete_map=TIER_COLORS, title="Risk tiers")
         pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=0))
         a.plotly_chart(pie, use_container_width=True)
-        hz = pd.DataFrame({"hazard": list(s["mean_hazard_probability"]), "mean damage probability": list(s["mean_hazard_probability"].values())})
-        bar = px.bar(hz, x="hazard", y="mean damage probability", title="Hazard mix", color_discrete_sequence=["#0A84FF"])
+        hz = pd.DataFrame({"hazard": [HAZARDS[h].label for h in s["mean_hazard_probability"]],
+                           "key": list(s["mean_hazard_probability"]),
+                           "mean damage probability": list(s["mean_hazard_probability"].values())})
+        bar = px.bar(hz, x="hazard", y="mean damage probability", title="Hazard mix (colour = hazard)", color="key",
+                     color_discrete_map={h: HAZARDS[h].color for h in HAZARDS}, text_auto=".1%")
+        bar.update_layout(showlegend=False)
         bar.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=0))
         b.plotly_chart(bar, use_container_width=True)
         with st.expander("Methodology"):
@@ -138,7 +148,11 @@ else:
                 "Each hazard intensity is converted to a damage probability with a sigmoid fragility curve "
                 "(HAZUS-*inspired*, uncalibrated defaults in `src/fragility.py`). Hazards are combined with a survival "
                 "model `P(any) = 1 - Π(1 - p_i)`, scaled by an asset-class criticality factor, and expected loss = "
-                "probability × loss ratio × replacement value. Loss is **scenario-based**, not an annual expected loss.")
+                "probability × loss ratio × replacement value. Loss is **scenario-based**, not an annual expected loss. "
+                "Drought (dry-spell length) and landslide are hazard-only indices with no damage function; they are "
+                "shown on the Hazard Risk tab but are not part of the score or the loss. Severity: Low <25, Medium 25-49, "
+                "High 50-74, Critical 75+ (screening thresholds). The score range is a ±15% hazard-intensity sensitivity, "
+                "not a confidence interval.")
             st.dataframe(pd.DataFrame(fragility.CURVES).T[["col", "k", "x0", "max_loss", "unit"]])
         if res["qa"]["issue_counts"]:
             with st.expander(f"Data quality: {res['qa']['rows_valid']}/{res['qa']['rows_in']} rows valid, "
@@ -147,43 +161,56 @@ else:
         st.caption(f"Processed in {res['elapsed_s']}s · outputs in `{res['out_dir']}`")
 
     with tabs[1]:
-        m = df.copy()
-        m["color"] = m["risk_tier"].map(TIER_RGB)
-        m["value_fmt"] = m["replacement_value"].map(usd)
-        m["loss_fmt"] = m["expected_loss_usd"].map(usd)
-        layer = pdk.Layer("ScatterplotLayer", m, get_position=["lon", "lat"], get_fill_color="color",
-                          get_radius="8000 + replacement_value / 20000", radius_min_pixels=6, radius_max_pixels=40,
-                          pickable=True, opacity=0.85)
+        opt = st.selectbox("Colour markers by", ["dominant"] + ALL_HAZARDS, format_func=lambda k: "Dominant hazard per asset" if k == "dominant" else HAZARDS[k].label)
+        m = viz.map_frame(df, opt)
+        layer = pdk.Layer("ScatterplotLayer", m, get_position=["lon", "lat"], get_fill_color="fill", get_line_color="line",
+                          get_radius="size_px", radius_units="pixels", stroked=True, line_width_min_pixels=1.5,
+                          pickable=True, opacity=1.0)
         view = pdk.ViewState(latitude=float(m.lat.mean()), longitude=float(m.lon.mean()), zoom=3.4)
-        tip = {"html": "<b>{name}</b><br/>{asset_class} · {state}<br/>Score {risk_score} ({risk_tier})<br/>"
-                       "Value {value_fmt}<br/>Loss {loss_fmt}<br/>Main hazard: {dominant_hazard}",
+        tip = {"html": "<b>{name_html}</b><br/>{detail_html}",
                "style": {"backgroundColor": "rgba(28,28,30,.9)", "color": "white", "borderRadius": "10px"}}
         st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view, tooltip=tip,
                                  map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"))
+        st.markdown(viz.legend_html(), unsafe_allow_html=True)
+        st.caption("Marker colour identifies the hazard. Marker size shows severity (larger = more severe). "
+                   "Hollow grey = no data for that hazard, which is not a low-risk finding.")
 
     with tabs[2]:
+        st.markdown(viz.legend_html(), unsafe_allow_html=True)
+        f1, f2 = st.columns(2)
+        hz_sel = f1.multiselect("Hazards", ALL_HAZARDS, default=ALL_HAZARDS, format_func=lambda k: HAZARDS[k].label)
+        sev_sel = f2.multiselect("Severity", SEVERITY_LEVELS + [NOT_ASSESSED], default=SEVERITY_LEVELS + [NOT_ASSESSED])
+        flt = viz.filter_assets(df, hz_sel, sev_sel).sort_values("risk_score", ascending=False, na_position="last")
+        st.caption(f"{len(flt)} of {len(df)} assets match the filters.")
+        if hz_sel:
+            cnt = pd.DataFrame([{"hazard": HAZARDS[h].label, "severity": sv, "assets": int((df[f"severity_{h}"] == sv).sum())}
+                                for h in hz_sel for sv in SEVERITY_LEVELS + [NOT_ASSESSED]])
+            ch = px.bar(cnt, x="hazard", y="assets", color="severity", title="Portfolio comparison: assets by severity and hazard",
+                        color_discrete_map=TIER_COLORS, category_orders={"severity": SEVERITY_LEVELS + [NOT_ASSESSED]}, text_auto=True)
+            ch.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=0), legend_title_text="Severity")
+            ch.for_each_trace(lambda t: t.update(marker=dict(color="#0f172a", pattern=dict(shape="/", fgcolor="#94A3B8")))
+                              if t.name == NOT_ASSESSED else None)  # hatched = no data, distinct from Low
+            st.plotly_chart(ch, use_container_width=True)
+        if len(flt):
+            st.markdown(viz.matrix_html(flt.head(200), hz_sel or None), unsafe_allow_html=True)
+            if len(flt) > 200:
+                st.caption("Showing the 200 highest-scoring matches. Export the CSV for the full list.")
+            pick = st.selectbox("Inspect an asset", flt["asset_id"] + " - " + flt["name"], key="inspect_asset")
+            st.markdown(viz.asset_card_html(df[df["asset_id"] == pick.split(" - ")[0]].iloc[0]), unsafe_allow_html=True)
+        else:
+            st.info("No assets match the current filters.")
+
+    with tabs[3]:
         cols = ["asset_id", "name", "state", "asset_class", "replacement_value", "risk_score", "risk_tier",
-                "dominant_hazard", "expected_loss_usd", "p_flood", "p_wind", "p_wildfire", "p_heat"]
+                "dominant_hazard", "overall_status", "expected_loss_usd", "p_flood", "p_wind", "p_wildfire", "p_heat"]
         st.dataframe(df[cols].sort_values("risk_score", ascending=False), use_container_width=True, hide_index=True,
                      column_config={"risk_score": st.column_config.ProgressColumn("risk_score", min_value=0, max_value=100),
                                     "replacement_value": st.column_config.NumberColumn(format="$%d"),
                                     "expected_loss_usd": st.column_config.NumberColumn(format="$%d")})
         st.download_button("Export CSV", df.to_csv(index=False), "asset_risk_scores.csv", "text/csv")
-        pick = st.selectbox("Drill down", df["asset_id"] + " - " + df["name"])
-        r = df[df["asset_id"] == pick.split(" - ")[0]].iloc[0]
-        d1, d2 = st.columns([1, 1])
-        d1.markdown(f"**{r['name']}** · {r['asset_class']} · {r['state']}  \n"
-                    f"Score **{r['risk_score']}** ({r['risk_tier']}) · Loss **{usd(r['expected_loss_usd'])}**  \n"
-                    f"Flood zone `{r['flood_zone']}` · Elevation {r['elevation_m']:.0f} m · Gust {r['wind_ms']:.0f} m/s · "
-                    f"Max temp {r['heat_c']:.1f} °C · Wildfire {r['wildfire_score']:.0f}/100  \n"
-                    f"Sources: " + ", ".join(f"{h}: `{r['src_'+h]}`" for h in hazards.HAZARDS))
-        bd = pd.DataFrame({"hazard": ["flood", "wind", "wildfire", "heat"],
-                           "p": [r["p_flood"], r["p_wind"], r["p_wildfire"], r["p_heat"]]})
-        f = px.bar(bd, x="p", y="hazard", orientation="h", range_x=[0, 1], color_discrete_sequence=["#0A84FF"])
-        f.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=220, margin=dict(t=10, b=0))
-        d2.plotly_chart(f, use_container_width=True)
+        st.caption("Per-hazard severity, confidence and an asset inspector are on the Hazard Risk tab.")
 
-    with tabs[3]:
+    with tabs[4]:
         mode = res["report_log"]["mode"]
         if meta["confidence"] < 0.3:
             st.warning("Synthetic data in use - do not use this report for disclosure.")
@@ -196,7 +223,7 @@ else:
         b.download_button("Download .json", json.dumps({"markdown": res["report_md"], "summary": s, "data_meta": meta},
                                                        indent=2, default=str), "portfolio_risk_report.json")
 
-with tabs[4]:
+with tabs[5]:
     st.subheader("Local hazard files (optional overrides)")
     ls = hazards.layer_status()
     st.write(("✅" if ls["fema_states"] else "⚪") + " FEMA NFHL GeoPackages: " +

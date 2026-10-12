@@ -23,3 +23,11 @@ Each event stores return period, AEP, depth, relative depth, loss components, so
 ## Limitations
 
 The current release does not fabricate velocity, duration, FFE, building footprints, or Pakistan-specific vulnerability observations. Shared portfolio event correlation, Monte Carlo distributions, and historical validation remain future work.
+
+## Fallback when no return-period event exists
+
+When the flood source is not a return-period layer (for example a FEMA flood-zone code or synthetic data), the engine emits no events and returns no AAL or PML. The risk model then falls back to its generic depth curve using the flood-zone depth proxy, and the asset's flood rating states that basis. Earlier versions treated this case as zero flood damage, or failed; neither is correct. When the engine does produce an event, its loss ratio is used directly and is not multiplied by the curve's maximum loss a second time.
+
+## Sea-level rise
+
+The scenario sea-level uplift is added to flood depth only at coastal sites: explicit V and VE zones, or ground at or below 5 m within 25 km of the US coastline model. Inland river-flood zones receive no uplift.

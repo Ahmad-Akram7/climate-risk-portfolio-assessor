@@ -35,6 +35,8 @@ HTTP_TIMEOUT = float(os.getenv("CRPA_HTTP_TIMEOUT", "6"))
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 OFFLINE = os.getenv("CRPA_OFFLINE", "0") == "1"  # skip all network calls
 MAX_WORKERS = int(os.getenv("CRPA_MAX_WORKERS", "8"))
+MAX_UPLOAD_MB = float(os.getenv("CRPA_MAX_UPLOAD_MB", "5"))  # API upload size cap
+MAX_JOBS = int(os.getenv("CRPA_MAX_JOBS", "100"))  # finished API jobs kept in memory
 
 
 def key(name: str) -> str | None:
