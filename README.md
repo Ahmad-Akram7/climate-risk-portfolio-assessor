@@ -50,7 +50,7 @@ Optional columns (see `data/templates/portfolio_enhanced_template.csv`) may be l
 
 CRPA checks the schema, coordinates, duplicate IDs, duplicate assets, null-island coordinates, state and coordinate mismatches, and coordinate precision. Invalid rows are dropped and described in the QA report.
 
-Supported coverage is the United States and Pakistan (the `state` column and coordinate bounds are validated against those). The `data/templates/europe_*.csv` files are not accepted by the current release and are kept only as drafts for a future Europe connector.
+Supported coverage is the United States and Pakistan (the `state` column and coordinate bounds are validated against those). The Europe drafts are not accepted by the current release and live in `archive/`.
 
 ## How a run works
 

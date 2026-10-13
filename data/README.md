@@ -15,4 +15,4 @@ Useful checks include:
 
 The `sample_pakistan_*.csv` files are small offline fixtures for the Pakistan workflow. Templates show the accepted upload columns. Large rasters belong in local storage or a separately documented release, not in ordinary Git history.
 
-The `templates/europe_*.csv` files are drafts: the current release validates assets against US states and Pakistan regions only, so they are rejected at ingestion.
+Unsupported drafts (Europe templates, duplicate test files) were moved to `archive/`.

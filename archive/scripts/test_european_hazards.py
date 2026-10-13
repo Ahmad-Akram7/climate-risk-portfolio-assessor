@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FLOOD_DIR = ROOT / "data" / "hazards" / "flood"
 WILDFIRE = ROOT / "data" / "hazards" / "wildfire" / "severity_2025.tiff"
 
-PORTFOLIO = ROOT / "data" / "templates" / "europe_demo_north.csv"
+PORTFOLIO = ROOT / "archive" / "data" / "europe_demo_north.csv"
 OUTPUT = ROOT / "outputs" / "europe_hazard_raw_test.csv"
 
 
