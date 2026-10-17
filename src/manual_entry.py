@@ -87,8 +87,12 @@ def rows_to_dataframe(rows: pd.DataFrame | list[dict]) -> pd.DataFrame:
         if c not in df:
             df[c] = None
     df = df[ENTRY_COLUMNS]
+    if df.empty:
+        return pd.DataFrame({c: pd.Series([], dtype="object") for c in ENTRY_COLUMNS})
     blank = df.apply(lambda r: all(pd.isna(v) or str(v).strip() == "" for v in r), axis=1)
     df = df[~blank].reset_index(drop=True)
+    if df.empty:
+        return pd.DataFrame({c: pd.Series([], dtype="object") for c in ENTRY_COLUMNS})
     for i in df.index:
         if pd.isna(df.at[i, "asset_id"]) or not str(df.at[i, "asset_id"]).strip():
             df.at[i, "asset_id"] = f"M-{i + 1:03d}"

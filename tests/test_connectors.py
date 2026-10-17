@@ -98,3 +98,9 @@ def test_bad_calibration_file_is_ignored(tmp_path, monkeypatch):
     with pytest.warns(UserWarning):
         assert fragility._load_overrides().startswith("default")
     assert fragility.CURVES["wind"] == before
+
+
+def test_manual_rows_empty_and_all_blank_do_not_crash():
+    assert manual_entry.rows_to_dataframe(manual_entry.blank_rows(0)).empty
+    assert manual_entry.rows_to_dataframe(manual_entry.blank_rows(3)).empty
+    assert list(manual_entry.rows_to_dataframe([]).columns) == manual_entry.ENTRY_COLUMNS
