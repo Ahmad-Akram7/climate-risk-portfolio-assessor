@@ -35,6 +35,8 @@ HTTP_TIMEOUT = float(os.getenv("CRPA_HTTP_TIMEOUT", "6"))
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 OFFLINE = os.getenv("CRPA_OFFLINE", "0") == "1"  # skip all network calls
 MAX_WORKERS = int(os.getenv("CRPA_MAX_WORKERS", "8"))
+# Open-Meteo is free for non-commercial use. A paid key switches every Open-Meteo call to the customer-* hosts.
+OPEN_METEO_COMMERCIAL = bool(os.getenv("OPEN_METEO_API_KEY"))
 MAX_UPLOAD_MB = float(os.getenv("CRPA_MAX_UPLOAD_MB", "5"))  # API upload size cap
 MAX_JOBS = int(os.getenv("CRPA_MAX_JOBS", "100"))  # finished API jobs kept in memory
 
@@ -54,3 +56,11 @@ LLM_MODEL = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b")
 
 for _d in (HAZARD_DIR, OUTPUT_DIR, CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
+
+
+def brand() -> dict:
+    """White-label settings, read at call time so the dashboard picks up .env changes after a restart."""
+    return {"name": os.getenv("CRPA_BRAND_NAME", "Climate Risk Assessor").strip() or "Climate Risk Assessor",
+            "tagline": os.getenv("CRPA_BRAND_TAGLINE", "Screen asset portfolios for physical climate risk").strip(),
+            "color": os.getenv("CRPA_BRAND_COLOR", "#1d4ed8").strip(),
+            "footer": os.getenv("CRPA_BRAND_FOOTER", "").strip()}

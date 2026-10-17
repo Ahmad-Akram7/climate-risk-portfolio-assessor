@@ -25,8 +25,14 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .hazard_registry import (ALL_HAZARDS, DAMAGE_HAZARDS, INDEX_HAZARDS, NOT_ASSESSED, SEVERITY_ORDER,
-                              source_weight)
+from .hazard_registry import (
+    ALL_HAZARDS,
+    DAMAGE_HAZARDS,
+    INDEX_HAZARDS,
+    NOT_ASSESSED,
+    SEVERITY_ORDER,
+    source_weight,
+)
 
 # hazard: input column, k, x0, max loss ratio if damaged, unit
 CURVES = {
@@ -41,6 +47,7 @@ CURVES = {
 INDEX_SCALES = {
     "drought":   dict(col="drought_cdd_days", lo=30.0, hi=180.0),
     "landslide": dict(col="landslide_index",  lo=0.0,   hi=100.0),
+    "river":     dict(col="river_flood_ratio", lo=2.0,  hi=20.0),
 }
 
 # multiplier on score and loss (consequence of failure / business interruption)
@@ -205,7 +212,7 @@ def portfolio_summary(df: pd.DataFrame, meta: dict) -> dict:
             "scenario_loss_usd": round(_sum(df, f"loss_{h}_usd"), 0) if h in DAMAGE_HAZARDS else None,
         }
     return {
-        "n_assets": int(len(df)),
+        "n_assets": len(df),
         "total_replacement_value_usd": tv,
         "total_expected_loss_usd": el,
         "expected_loss_pct_of_value": round(100 * el / tv, 2) if tv else 0.0,

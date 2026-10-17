@@ -98,7 +98,7 @@ def test_api_job_store_is_bounded(monkeypatch):
 
 def test_hazard_legend_endpoint():
     j = TestClient(app).get("/api/v1/hazards").json()
-    assert {h["key"] for h in j["hazards"]} == {"flood", "wildfire", "heat", "wind", "landslide", "drought"}
+    assert {h["key"] for h in j["hazards"]} == {"flood", "wildfire", "heat", "wind", "landslide", "drought", "river"}
     assert j["severity_levels"] == ["Low", "Medium", "High", "Critical"]
 
 

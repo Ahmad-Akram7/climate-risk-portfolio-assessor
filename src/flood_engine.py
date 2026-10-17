@@ -8,8 +8,8 @@ until a licensed or published, compatible function is configured.
 """
 from __future__ import annotations
 
-from datetime import date
 import math
+from datetime import date
 
 import numpy as np
 import pandas as pd

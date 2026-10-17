@@ -13,3 +13,13 @@ Further limits of the current scoring:
 - Hazard probabilities are combined as if independent. Correlated events and portfolio-level accumulation are not modelled.
 - Sea-level rise uses a US-only coastline model; outside the US only explicit coastal flood zones get the uplift.
 - The consequence factor by asset class is a business-interruption proxy, not a measured value.
+
+## Added with the API and commercial upgrade
+
+The river indicator is the ratio of a 20-year peak flow to the median flow from GloFAS (about 5 km). It shows how flashy a river is. It is not flood depth at the site and does not enter the score or loss.
+
+The CMIP6 scenario uses one model and one high-emissions pathway. There is no scenario selector and no uncertainty range across models.
+
+The Open-Meteo climate, flood and geocoding calls and the paid `customer-*` hosts were not exercised against the live services during development. The parsing is covered by tests on synthetic responses.
+
+The Open-Meteo free tier is non-commercial. Selling results needs a paid plan.
