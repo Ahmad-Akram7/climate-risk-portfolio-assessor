@@ -76,3 +76,25 @@ def test_landslide_class_raster_maps_to_index(monkeypatch):
     monkeypatch.setattr(hazards, "local_raster", lambda name, lat, lon, nodata_default=None: calls.get(name))
     assert hazards.LANDSLIDE_CLASS_INDEX[4] == 70.0
     assert calls["pakistan_landslide"] == 4.0
+
+
+def test_building_attributes_shift_wind_vulnerability():
+    import pandas as pd
+
+    from src.fragility import wind_vulnerability_shift
+    df = pd.DataFrame({"construction_type": ["", "Reinforced concrete", "Timber frame"],
+                       "year_built": [None, 2015, 1970], "stories": [None, None, None]})
+    s = wind_vulnerability_shift(df)
+    assert s[0] == 0 and s[1] > 0 and s[2] < 0
+
+
+def test_bad_calibration_file_is_ignored(tmp_path, monkeypatch):
+    from src import config, fragility
+    (tmp_path / "calibration").mkdir()
+    (tmp_path / "calibration" / "fragility.json").write_text('{"wind": {"k": -1}}')
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    before = dict(fragility.CURVES["wind"])
+    import pytest
+    with pytest.warns(UserWarning):
+        assert fragility._load_overrides().startswith("default")
+    assert fragility.CURVES["wind"] == before

@@ -23,3 +23,11 @@ The CMIP6 scenario uses one model and one high-emissions pathway. There is no sc
 The Open-Meteo climate, flood and geocoding calls and the paid `customer-*` hosts were not exercised against the live services during development. The parsing is covered by tests on synthetic responses.
 
 The Open-Meteo free tier is non-commercial. Selling results needs a paid plan.
+
+## Fragility calibration and building attributes
+
+The default curves are not calibrated to any loss record. Wind damage probability is the probability at the worst daily gust in the record, so it is not an annual figure. With the default curve it only passes 85% above about 65 m/s.
+
+Construction type, year built, height and stories shift the wind curve midpoint by assumed screening amounts (see `WIND_CONSTRUCTION_SHIFT` in `src/fragility.py`). These values are judgement, not fitted to data. Assets without these fields use the generic curve, and the `vulnerability_basis` column says which was used.
+
+To calibrate with your own loss or claims data, create `data/calibration/fragility.json`, for example `{"wind": {"k": 0.2, "x0": 60, "max_loss": 0.35}}`. An invalid file is ignored with a warning. Public disaster totals such as EM-DAT are country-level and cannot calibrate asset-level curves on their own.
