@@ -30,6 +30,7 @@ from .hazard_registry import source_weight as _registry_source_weight
 HAZARDS = ["flood", "wind", "heat", "wildfire", "elevation"]
 # Optional hazards: real data or nothing. They are never synthesised; missing data is reported as 'not assessed'.
 EXTRA_HAZARDS = ["drought", "landslide", "river"]
+LANDSLIDE_CLASS_INDEX = {1: 10.0, 2: 30.0, 3: 50.0, 4: 70.0, 5: 90.0}
 US_COVERAGE = (17.5, 72.0, -180.0, -64.0)  # lat_min, lat_max, lon_min, lon_max; the coastline polyline below is US-only
 
 # Flood-zone -> design flood depth proxy (m) used by the fragility engine.
@@ -590,10 +591,18 @@ def _extract_one(a: dict, ctx: RunContext, scenario: str = "current") -> dict:
     else:
         out["drought_cdd_days"], src["drought"] = float("nan"), "Unavailable"
 
-    # LANDSLIDE: optional local susceptibility raster (WGS84, 0-1 or 0-100). Real data or nothing.
+    # LANDSLIDE: optional local susceptibility raster (WGS84). Real data or nothing.
+    # Accepts 0-1, 0-100, or the NASA LHASA global map's classes 1-5 (very low .. very high).
+    # Class 0 is treated as no data, never as "no hazard".
     v = local_raster("landslide_susceptibility", lat, lon)
-    if v is not None and math.isfinite(v) and v >= 0:
-        out["landslide_index"] = float(min(100.0, v * 100 if v <= 1 else v))
+    if v is None:
+        v = local_raster("pakistan_landslide", lat, lon)
+    if v is not None and math.isfinite(v) and v > 0:
+        if float(v).is_integer() and 1 <= v <= 5:
+            idx = LANDSLIDE_CLASS_INDEX[int(v)]
+        else:
+            idx = float(min(100.0, v * 100 if v <= 1 else v))
+        out["landslide_index"] = idx
         src["landslide"] = "Local_Landslide_Susceptibility_Raster"
     else:
         out["landslide_index"], src["landslide"] = float("nan"), "Unavailable"
@@ -686,7 +695,7 @@ def layer_status() -> dict:
     elevation_tiles = list((config.HAZARD_DIR / "elevation_dem_tiles").glob("*.tif"))
     rasters = {n: (config.HAZARD_DIR / f"{n}.tif").exists()
                for n in ("flood_depth_jrc_rp20y", "elevation_dem", "wind_gust_max_ms", "heat_max_c", "wildfire_burn_prob",
-                         "landslide_susceptibility")}
+                         "landslide_susceptibility", "pakistan_landslide")}
     rasters["elevation_dem"] = rasters["elevation_dem"] or bool(elevation_tiles)
     try:
         import geopandas  # noqa: F401
