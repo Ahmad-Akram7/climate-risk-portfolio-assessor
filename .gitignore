@@ -25,7 +25,8 @@ brag-output-*/
 climate-risk-prospects.xlsx
 
 # Local geospatial datasets
-data/hazards/
+data/hazards/*
+!data/hazards/README.md
 
 # Temporary/local folders
 Github/
