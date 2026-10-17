@@ -40,3 +40,7 @@ The curve parameters (`CURVES`), the severity thresholds, the drought index scal
 ## Reference-period and scenario handling
 
 Baseline hazard values come from local layers or from ERA5 daily extremes for 2015-2024. Future scenarios apply fixed multipliers (temperature offset, gust factor, fire factor, sea-level rise) to those baselines; they are not CMIP6 downscaled output, and drought and landslide are not scenario-adjusted.
+
+## Added with the API and commercial upgrade
+
+River flood is an index hazard (Gumbel 20-year peak over median flow, scaled 2 to 20 onto 0 to 100) with no fragility curve. The `cmip6_hr` scenario applies a per-site temperature and wind delta between 1991 to 2020 and 2021 to 2050 from one model, falling back to fixed regional factors when the request fails.

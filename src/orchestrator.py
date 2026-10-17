@@ -12,14 +12,15 @@ from pathlib import Path
 import pandas as pd
 
 from . import config, fragility, hazards, ingestion, reporting
-from .flood_engine import calculate as calculate_flood
 from .exposure import enrich_assets
-
+from .flood_engine import calculate as calculate_flood
+from .report_html import build_html_report
 
 ASSESSMENT_BASIS = {
     "current": "Historical hazard data (ERA5 2015-2024 extremes or local layers); no climate-change uplift",
     "ssp126": "Historical hazard data plus parametric 2050 uplift for SSP1-2.6 (not downscaled model output)",
     "ssp585": "Historical hazard data plus parametric 2050 uplift for SSP5-8.5 (not downscaled model output)",
+    "cmip6_hr": "Historical hazard data plus a per-site CMIP6 HighResMIP change (2021-2050 vs 1991-2020, one model); sites without a result use the SSP5-8.5 uplift",
 }
 
 
@@ -78,9 +79,13 @@ def run_assessment(source, scenario: str = "current", use_llm: bool = True, fram
 
     p("Writing outputs", 0.95)
     files = _write_outputs(out, scored, summary, meta, ing, rep)
+    report_html = build_html_report(dict(assets=scored, summary=summary, meta=meta, report_md=rep["markdown"],
+                                         report_log=rep["log"]), config.brand())
+    (out / "portfolio_risk_report.html").write_text(report_html, encoding="utf-8")
+    files["report_html"] = "portfolio_risk_report.html"
     p("Done", 1.0)
     return dict(run_id=run_id, out_dir=str(out), assets=scored, summary=summary, meta=meta, qa=ing.summary(),
-                report_md=rep["markdown"], report_log=rep["log"], files=files,
+                report_md=rep["markdown"], report_log=rep["log"], report_html=report_html, files=files,
                 elapsed_s=round(time.time() - t0, 2))
 
 

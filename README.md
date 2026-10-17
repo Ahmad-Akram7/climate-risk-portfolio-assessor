@@ -1,145 +1,95 @@
 # Climate Risk Portfolio Assessor
 
-Climate Risk Portfolio Assessor (CRPA) reads an asset CSV and produces multi-hazard screening scores, scenario loss estimates, a Streamlit dashboard, and a Markdown report. It runs locally and is distributed under a proprietary commercial license.
+A tool that scores physical climate risk for a portfolio of buildings and infrastructure. You give it a list of assets with a location and a replacement value. It returns a risk score, a severity tier and the main hazard for each asset, a map, and a report you can print or send to a client.
 
-When no live layers or API keys are available, CRPA uses synthetic demo values. Each result records its source and confidence so demo values remain separate from values backed by a real dataset.
+It covers flood, wind, wildfire, extreme heat, river flooding, drought and landslide. The first four feed a loss estimate. The last three are shown as hazard indicators only, because there is no defensible damage curve for them here.
 
-## Product preview
+## Quick start
 
-![CRPA overview](docs/screenshots/crpa-overview.jpg)
-
-![CRPA pipeline](docs/screenshots/pipeline.svg)
-
-The short product preview is also available as [`brag.mp4`](../brag-output-2026-10-07-120000/brag.mp4) in the development workspace.
-
-## Start the app
-
-On Linux or macOS:
+You need Python 3.11 or newer.
 
 ```bash
-./run.sh setup
-./run.sh dashboard   # http://localhost:8502
-./run.sh api         # http://localhost:8000/docs
+pip install -r requirements.txt
+streamlit run app/dashboard.py
 ```
 
-On Windows:
+The app opens with a demo portfolio, so you can press "Run assessment" straight away. The demo uses synthetic hazard values and says so on every screen and in the report. Nothing is scored as safe because data is missing: a hazard without data shows "No data" instead of "Low".
 
-```powershell
-python -m venv .venv
-.venv\Scripts\pip install -r requirements-dev.txt
-.venv\Scripts\streamlit run app\dashboard.py
-```
+To run without any network access, set `CRPA_OFFLINE=1`.
 
-The `run.bat` file starts the API and dashboard together. To run the command-line workflow:
+## Getting your own assets in
 
-```bash
-./run.sh cli data/templates/portfolio_upload_template.csv --scenario ssp585 --no-llm
-```
+The sidebar has three ways to load a portfolio.
 
-## Input CSV
+Upload CSV takes a file in the format of `data/templates/portfolio_upload_template.csv`. You can download the template from the sidebar.
 
-The required columns are:
+Enter manually gives you a form and an editable table. Type a place name and the app looks up its coordinates and region. Add assets one by one with the form, or edit the table directly, including adding rows at the bottom. Manual rows go through the same validation as an uploaded CSV, and a problem with a row is reported next to the form.
 
-```text
-asset_id,name,lat,lon,state,asset_class,replacement_value
-```
+The demo portfolio is a small mixed set of US and Pakistan sites.
 
-Supported asset classes include office, industrial, retail, residential, hospital, data_center, infrastructure, hotel, and other. Values such as `50000000`, `$50,000,000`, `50M`, and `2.5k` are accepted. The default limit is 500 assets and can be changed with `CRPA_MAX_ASSETS`.
+## Real data and where to get keys
 
-Optional columns (see `data/templates/portfolio_enhanced_template.csv`) may be left blank; a blank cell means "not supplied". Optional money columns accept the same formats as `replacement_value`. Negative values, impossible years and non-finite coordinates are rejected row by row.
+Most of the real data comes from Open-Meteo and works without a key. The other services are optional and each one adds a hazard layer or a better input.
 
-CRPA checks the schema, coordinates, duplicate IDs, duplicate assets, null-island coordinates, state and coordinate mismatches, and coordinate precision. Invalid rows are dropped and described in the QA report.
+| Service | What it adds | Key |
+| --- | --- | --- |
+| Open-Meteo | Wind and heat extremes (ERA5), dry spells, GloFAS river discharge, CMIP6 climate change signal, elevation, place search | Not needed for non-commercial use. Paid plan at https://open-meteo.com/en/pricing |
+| NOAA Climate Data Online | Station temperature records for the US | https://www.ncdc.noaa.gov/cdo-web/token |
+| NASA FIRMS | Active fire detections from the last 10 days | https://firms.modaps.eosdis.nasa.gov/api/map_key/ |
+| OpenTopography | 30 m Copernicus elevation | https://portal.opentopography.org/requestService?service=api |
+| NVIDIA API catalog | Optional AI-written narrative in the report | https://build.nvidia.com |
 
-Supported coverage is the United States and Pakistan (the `state` column and coordinate bounds are validated against those). The `data/templates/europe_*.csv` files are not accepted by the current release and are kept only as drafts for a future Europe connector.
+Copy `.env.example` to `.env` and fill in what you have. You can also paste keys into the "API keys" panel in the sidebar. Those stay in memory for the session only.
 
-## How a run works
+If you have local files, the app also reads FEMA flood zone GeoPackages and WGS84 GeoTIFFs for wind, heat, wildfire, drought and landslide from `data/hazards/`. A raster is used only when it covers the asset.
 
-1. `src/ingestion.py` validates the input and performs spatial checks.
-2. `src/hazards.py` reads local rasters, cached or free APIs, and then synthetic fallbacks. Each result carries a source label.
-3. `src/fragility.py` applies the current HAZUS-inspired screening curves. It keeps hazard, vulnerability, risk score, severity, data status and source quality in separate columns and calculates a scenario loss.
-4. `src/reporting.py` calls the configured OpenAI-compatible LLM when available. If the call fails, CRPA writes a deterministic report instead.
+## Climate scenarios
 
-Results are written below `outputs/<run-id>/`, including asset scores, GeoJSON, an optional GeoPackage, a portfolio summary, QA details, and the report.
+"Current climate" uses historical records. The CMIP6 option fetches a model projection for each site and uses the difference in mean annual maximum temperature and wind between 1991 to 2020 and 2021 to 2050. It uses one model (EC_Earth3P_HR) under high emissions, so it is one plausible future and not a forecast. If the request fails for a site, the app falls back to fixed regional numbers and records that in the `scenario_source` column.
 
-## Reading the results
+## How a score is built
 
-Every asset gets a rating for each of six hazards. Colour identifies the hazard and never carries severity; severity is always written as a word and shown as a four-step bar meter.
+For the four damage hazards, a hazard intensity (flood depth, gust speed, fire score, peak temperature) goes through a sigmoid fragility curve to give a damage probability. The curves are inspired by HAZUS but are not calibrated, and they live in `src/fragility.py`. Probabilities combine as one minus the product of survival chances, scaled by a factor for the asset class. The scenario loss is probability times loss ratio times value. It is a scenario figure, not an annual expected loss.
 
-| Hazard | Code | Colour | Basis of the rating |
-| --- | --- | --- | --- |
-| Flood | FLD | blue | hazard x vulnerability x consequence |
-| Fire | FIR | red | hazard x vulnerability x consequence |
-| Extreme heat | HET | orange | hazard x vulnerability x consequence |
-| Wind | WND | slate | hazard x vulnerability x consequence |
-| Landslide | LSL | purple | hazard index only (no damage function), needs a local raster |
-| Drought (dry spell) | DRT | yellow | hazard index only (no damage function), needs the Open-Meteo API |
+Severity is Low below 25, Medium 25 to 49, High 50 to 74, and Critical from 75. A Low rating is marked "verified" only when every damage hazard has real data and the source quality is at least 0.5. The score range shown beside each asset is a plus or minus 15 percent sensitivity on hazard intensity. It is not a confidence interval.
 
-Severity is Low (score under 25), Medium (25 to 49), High (50 to 74) or Critical (75 and above). These are screening thresholds, not validated limits. Each rating also has a data status: assessed (real data), illustrative (synthetic input; the result shows the method only) or not assessed (no data). A hazard that is not assessed is shown as "No data" and is never counted as low risk. A Low rating is shown as verified (green) only when every modelled hazard has real data of at least medium source quality.
+Colour identifies the hazard (flood blue, fire red, heat orange, wind slate, landslide purple, river cyan, drought yellow). Severity is shown as text and a segmented meter, so it never depends on colour alone.
 
-The Hazard Risk tab has a legend, hazard and severity filters, a portfolio comparison chart, an asset-by-hazard matrix and an inspector with the contributing factors, the scenario and the recommended actions for each hazard. The Map tab colours markers by hazard and sizes them by severity.
+## The report
 
-The risk-score range shown for each asset comes from a plus or minus 15 percent change in hazard intensity. It shows how sensitive the score is to the input; it is not a statistical confidence interval. "Source quality" is a judgement-based ranking of the data source (resolution and directness), defined in `src/hazard_registry.py`; it is not a probability.
+Each run writes a standalone HTML report with a cover, headline numbers, two charts, the top assets, notes per hazard, data sources and attribution. It has no scripts and prints cleanly to PDF. Markdown, JSON and CSV versions are written alongside it.
 
-## Data sources
+## Selling or sharing reports
 
-| Hazard | Current source path |
-| --- | --- |
-| Flood | Pakistan uses the JRC Global FloodMap 20-year depth raster. FEMA NFHL is supported for US state GeoPackages only. |
-| Elevation | Local Copernicus GLO-90 tiles, OpenTopography COP30, then Open-Meteo point elevation. |
-| Wind | Open-Meteo ERA5 gusts or a local WGS84 raster in metres per second. |
-| Heat | Open-Meteo ERA5 temperature, NOAA CDO stations, or a local Celsius raster. |
-| Wildfire | NASA FIRMS active-fire observations or a local burn-probability raster. |
-| Drought | Open-Meteo ERA5 daily precipitation (2015-2024), summarised as the mean annual longest run of dry days. No synthetic fallback. |
-| Landslide | Optional local raster `data/hazards/landslide_susceptibility.tif` (WGS84, values 0-1 or 0-100). No synthetic fallback. |
+Three things matter before you charge for results.
 
-Install geospatial dependencies and download the Pakistan layers with:
+The Open-Meteo free tier is for non-commercial use. If you sell reports that use its data, buy a plan and set `OPEN_METEO_API_KEY`. The code then switches to the paid hosts. That switch follows Open-Meteo's documented host naming but has not been tested against a live paid account.
 
-```bash
-pip install -r requirements-geo.txt
-python scripts/download_pakistan_hazards.py
-```
+The dashboard and report carry your branding when you set `CRPA_BRAND_NAME`, `CRPA_BRAND_TAGLINE`, `CRPA_BRAND_COLOR` and `CRPA_BRAND_FOOTER`.
 
-The download script writes ignored local rasters. Keep the source, license, AOI, CRS, resolution, and retrieval date with any data you distribute. FEMA NFHL is a US program and does not provide a national Pakistan layer.
-
-API credentials belong in `.env`, which is ignored by Git. Use `.env.example` as the template. Never commit the real file or paste its values into an issue, log, notebook, or release archive.
+The data sources require attribution (CMIP6 under CC BY 4.0, Copernicus ERA5 and others). The report includes the notices. Read `DATA_SOURCES.md` and `LIMITATIONS.md` before you rely on any figure. The model is a screening tool and does not replace a site survey or an engineering study.
 
 ## API
 
-`uvicorn api.main:app` serves `POST /api/v1/assess` (upload a CSV; returns a job id), `GET /api/v1/jobs/{id}` (status and summary), `GET /api/v1/jobs/{id}/assets?hazard=&severity=` (per-asset ratings as JSON), `GET /api/v1/jobs/{id}/files/{name}` (outputs) and `GET /api/v1/hazards` (hazard colours and the severity scale for building legends). Uploads are limited by `CRPA_MAX_UPLOAD_MB` (default 5) and finished jobs are kept in memory up to `CRPA_MAX_JOBS` (default 100), so the job list resets when the server restarts.
+```bash
+uvicorn api.main:app
+```
+
+Endpoints sit under `/api/v1`: `hazards`, `assess` (CSV upload), `jobs/{id}` and the generated files. Interactive docs are at `/docs`.
 
 ## Tests
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+CRPA_OFFLINE=1 pytest -q
 ```
 
-The suite sets `CRPA_OFFLINE=1`, so it needs no network or API keys.
-
-## AI reports
-
-Set `NVIDIA_API_KEY` for the NVIDIA OpenAI-compatible endpoint, or configure another compatible endpoint through the variables in `.env.example`. When the AI report is on, a summary of the portfolio (counts, scores, top asset names) is sent to that provider. Leave it off, or use `--no-llm`, for confidential portfolios. `LLM_TIMEOUT` defaults to 120 seconds. AI failures use the deterministic report path, so the assessment still completes.
-
-## Limits
-
-These are screening results. The curves are HAZUS-inspired defaults, not licensed HAZUS parameters. Expected loss is scenario-based and does not model deductibles, building age, construction type, or annual return periods; floor height is used only for flood and only when you supply it. Drought and landslide are hazard indices without a damage function and are left out of the score and the loss. Sea-level rise is applied only to coastal sites (explicit V/VE zones, or low ground within 25 km of the US coast model), so inland flood zones do not get a sea-level uplift. ERA5 is a coarse reanalysis product, FIRMS measures recent fire activity, and future scenarios use parameter uplifts rather than downscaled climate projections. Review outputs with a qualified risk professional before using them for a regulated decision.
+The connector tests use synthetic responses. I could not reach the Open-Meteo climate, flood and geocoding endpoints from the build environment, so those calls have not been run against the live services. Run one assessment with network access on before relying on them.
 
 ## Repository layout
 
-```text
-app/                 Streamlit dashboard
-api/                 FastAPI service
-src/                 ingestion, hazards, scoring, reporting
-data/                samples, templates, and local-data notes
-scripts/             data download helpers
-tests/               API and dashboard checks
-Github/              clean export prepared for publication
-```
+`src/` holds the engine (ingestion, hazards, fragility, report, charts). `app/dashboard.py` is the Streamlit interface and `api/main.py` the FastAPI service. `archive/` holds retired experiments that are no longer maintained.
 
-## Comparison report
+## Licence
 
-The Pakistan test comparison is available in [`outputs/pakistan_two_report_brief.md`](outputs/pakistan_two_report_brief.md). It covers the four-asset offline fixture, the 21-asset coverage test, parser checks, and current hazard gaps.
-
-## License
-
-This repository is proprietary and all rights are reserved. Use, resale, redistribution, and derivative products require a written commercial license. Third-party datasets keep their own licenses and attribution requirements. See [`LICENSE`](LICENSE).
+See `LICENSE`.

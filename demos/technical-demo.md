@@ -12,7 +12,7 @@ uv pip sync requirements-dev.txt
 ```
 
 Then open http://localhost:8502 and:
-- Upload `data/templates/europe_demo_north.csv` (northern Europe assets)
+- Upload `archive/data/europe_demo_north.csv (archived; not accepted by the current release)` (northern Europe assets)
 - Select scenario "current"
 - Toggle "Use AI report" on/off
 - View risk scores, map, and AI-generated report

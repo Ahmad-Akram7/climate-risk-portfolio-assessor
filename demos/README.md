@@ -30,7 +30,7 @@ Run the test script:
 Output: 100 valid flood-depth pixels with coordinates and metric values.
 
 ```bash
-.venv\Scripts\python.exe scripts\test_european_hazards.py
+.venv\Scripts\python.exe archive\scripts\test_european_hazards.py
 ```
 
 Output: Raw hazard values for northern Europe assets (flood RP20/RP100/RP500 + wildfire severity).

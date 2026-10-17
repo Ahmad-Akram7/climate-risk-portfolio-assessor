@@ -31,13 +31,15 @@ HAZARDS: dict[str, HazardSpec] = {
                        "Maximum daily gust over the reference period (ERA5 reanalysis underestimates local extremes)."),
     "landslide": HazardSpec("landslide", "Landslide", "LSL", "#A855F7", "landslide_index", "0-100 index", "hazard_only",
                             "Susceptibility index from an optional local raster. No vulnerability function is applied."),
+    "river": HazardSpec("river", "River flood (discharge)", "RVR", "#06B6D4", "river_flood_ratio", "Q20 / median flow", "hazard_only",
+                        "Flood-peak ratio from GloFAS river discharge (about 5 km). Shows how flashy the river is, not flood depth at the site."),
     "drought": HazardSpec("drought", "Drought (dry spell)", "DRT", "#EAB308", "drought_cdd_days", "days", "hazard_only",
                           "Mean annual maximum consecutive dry days (ETCCDI CDD). Measures dry-spell length, not drought anomaly."),
 }
 # Hazards that have a fragility curve and feed the loss estimate.
 DAMAGE_HAZARDS = ["flood", "wind", "wildfire", "heat"]
 # Hazards reported as a hazard index only (no damage function, no loss).
-INDEX_HAZARDS = ["drought", "landslide"]
+INDEX_HAZARDS = ["drought", "landslide", "river"]
 ALL_HAZARDS = DAMAGE_HAZARDS + INDEX_HAZARDS
 
 SEVERITY_LEVELS = ["Low", "Medium", "High", "Critical"]  # ordinal 1..4
@@ -60,7 +62,9 @@ SOURCE_QUALITY: list[tuple[str, float]] = [
     ("Copernicus", 1.0),
     ("OpenTopography", 1.0),
     ("OpenMeteo_Elevation", 0.8),
-    ("OpenMeteo_ERA5", 0.6),              # ~10-25 km reanalysis
+    ("OpenMeteo_ERA5", 0.6),
+    ("OpenMeteo_Climate", 0.6),           # CMIP6 HighResMIP delta, one model
+    ("OpenMeteo_GloFAS", 0.4),            # discharge, not depth; 5 km cell              # ~10-25 km reanalysis
     ("NOAA_CDO", 0.8),
     ("NASA_FIRMS", 0.3),                  # recent detections, not a long-term hazard probability
     ("Wind_Gust_Raster_Local", 0.9),
@@ -95,6 +99,8 @@ MITIGATION: dict[str, list[str]] = {
                  "Use ember-resistant vents and non-combustible roofing; confirm fire-service access."],
     "heat": ["Check cooling capacity and redundancy against peak temperatures.",
              "Plan for grid outage: backup power and load shedding."],
+    "river": ["Commission a site-specific flood study (depth and extent) before relying on this indicator.",
+              "Check the distance to the nearest river or drainage channel and the site's drainage."],
     "drought": ["Review water supply dependence and storage; plan water-use restrictions.",
                 "Check for ground-movement and fire-risk effects of prolonged dry spells."],
     "landslide": ["Commission a site-specific slope stability and drainage assessment.",

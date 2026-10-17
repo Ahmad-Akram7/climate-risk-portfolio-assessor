@@ -29,7 +29,7 @@ from .hazard_registry import source_weight as _registry_source_weight
 # Core hazards that always have a value (real or synthetic) and feed the overall data-confidence score.
 HAZARDS = ["flood", "wind", "heat", "wildfire", "elevation"]
 # Optional hazards: real data or nothing. They are never synthesised; missing data is reported as 'not assessed'.
-EXTRA_HAZARDS = ["drought", "landslide"]
+EXTRA_HAZARDS = ["drought", "landslide", "river"]
 US_COVERAGE = (17.5, 72.0, -180.0, -64.0)  # lat_min, lat_max, lon_min, lon_max; the coastline polyline below is US-only
 
 # Flood-zone -> design flood depth proxy (m) used by the fragility engine.
@@ -41,7 +41,11 @@ SCENARIOS = {
     "current": dict(label="Current climate", dT=0.0, wind=1.00, slr=0.00, fire=1.00),
     "ssp126": dict(label="SSP1-2.6 (2050)", dT=1.2, wind=1.02, slr=0.20, fire=1.05),
     "ssp585": dict(label="SSP5-8.5 (2050)", dT=2.2, wind=1.05, slr=0.30, fire=1.12),
+    # Per-site temperature and wind change taken from CMIP6 HighResMIP (Open-Meteo Climate API): mean annual maximum
+    # 2021-2050 minus 1991-2020, one model, close to a high-emissions pathway. Falls back to the SSP5-8.5 numbers per site.
+    "cmip6_hr": dict(label="CMIP6 HighResMIP (high emissions, 2021-2050)", dT=2.2, wind=1.05, slr=0.30, fire=1.12, api=True),
 }
+CLIMATE_MODEL = "EC_Earth3P_HR"
 
 # ----------------------------------------------------------------------------- cache
 _cache_lock = threading.Lock()
@@ -260,6 +264,104 @@ def local_raster(name: str, lat: float, lon: float, nodata_default=None):
 
 
 # ----------------------------------------------------------------------------- free APIs
+_OM_HOSTS = {"archive": "archive-api", "elevation": "api", "climate": "climate-api", "flood": "flood-api",
+             "geocoding": "geocoding-api"}
+
+
+def openmeteo_url(service: str, path: str) -> tuple[str, dict]:
+    """Free host by default; with OPEN_METEO_API_KEY the paid customer-* host plus the apikey parameter."""
+    host = _OM_HOSTS[service]
+    k = config.key("OPEN_METEO_API_KEY")
+    if k:
+        return f"https://customer-{host}.open-meteo.com{path}", {"apikey": k}
+    return f"https://{host}.open-meteo.com{path}", {}
+
+
+def _series(daily: dict, var: str):
+    """Daily values for `var`. Open-Meteo suffixes the key with the model name when several models are requested."""
+    for k, v in daily.items():
+        if k == var or k.startswith(var + "_"):
+            return np.array(v, dtype=float)
+    raise KeyError(var)
+
+
+def _annual_max(dates, values, min_days: int = 300) -> dict[int, float]:
+    s = pd.Series(np.asarray(values, dtype=float), index=pd.to_datetime(pd.Series(dates)))
+    return {int(y): float(g.max()) for y, g in s.groupby(s.index.year) if g.notna().sum() >= min_days}
+
+
+def climate_delta(dates, tmax, wmax, base=(1991, 2020), future=(2021, 2050), min_years: int = 25):
+    """Delta method: change in mean annual-maximum temperature (deg C) and wind speed (ratio) between two periods.
+
+    Returns None unless both periods have at least `min_years` complete years.
+    """
+    t, w = _annual_max(dates, tmax), _annual_max(dates, wmax)
+
+    def mean(d, lo, hi):
+        v = [x for y, x in d.items() if lo <= y <= hi]
+        return float(np.mean(v)) if len(v) >= min_years else None
+
+    tb, tf, wb, wf = mean(t, *base), mean(t, *future), mean(w, *base), mean(w, *future)
+    if None in (tb, tf):
+        return None
+    ratio = (wf / wb) if (wb and wf and wb > 0) else None
+    return {"dT": round(tf - tb, 2), "wind_ratio": round(ratio, 3) if ratio else None, "model": CLIMATE_MODEL}
+
+
+def api_climate_delta(ctx: RunContext, lat, lon):
+    key = f"clim1:{CLIMATE_MODEL}:{lat:.1f},{lon:.1f}"
+    if (v := cache_get(key)) is not None:
+        return v
+    url, extra = openmeteo_url("climate", "/v1/climate")
+    r = _get(ctx, "open-meteo-climate", url, params={
+        "latitude": f"{lat:.3f}", "longitude": f"{lon:.3f}", "start_date": "1991-01-01", "end_date": "2050-12-31",
+        "models": CLIMATE_MODEL, "daily": "temperature_2m_max,wind_speed_10m_max", "wind_speed_unit": "ms", **extra})
+    if r is None:
+        return None
+    try:
+        d = r.json()["daily"]
+        out = climate_delta(d["time"], _series(d, "temperature_2m_max"), _series(d, "wind_speed_10m_max"))
+    except Exception:
+        return None
+    if out:
+        cache_put(key, out)
+    return out
+
+
+def river_stats(dates, discharge, min_years: int = 15):
+    """Gumbel (method of moments) 20-year peak from annual maxima, and median daily flow. None if the record is short."""
+    q = np.asarray(discharge, dtype=float)
+    am = _annual_max(dates, q)
+    if len(am) < min_years:
+        return None
+    x = np.array(list(am.values()))
+    q20 = float(x.mean() + x.std(ddof=1) * (-0.45 - 0.7797 * math.log(-math.log(1 - 1 / 20))))
+    return {"q20": q20, "q50": float(np.nanmedian(q)), "years": len(am)}
+
+
+def api_glofas(ctx: RunContext, lat, lon):
+    """GloFAS v4 river discharge 1984-2022 (about 5 km) -> peak-flow ratio. Indicator only: discharge is not depth."""
+    key = f"glofas1:{lat:.2f},{lon:.2f}"
+    if (v := cache_get(key)) is not None:
+        return v
+    url, extra = openmeteo_url("flood", "/v1/flood")
+    r = _get(ctx, "open-meteo-flood", url, params={
+        "latitude": f"{lat:.3f}", "longitude": f"{lon:.3f}", "daily": "river_discharge",
+        "start_date": "1984-01-01", "end_date": "2022-06-30", **extra})
+    if r is None:
+        return None
+    try:
+        d = r.json()["daily"]
+        st = river_stats(d["time"], _series(d, "river_discharge"))
+    except Exception:
+        return None
+    if not st:
+        return None
+    # Below 1 m3/s there is no meaningful river in the cell: ratio 0, reported as assessed with low quality.
+    out = {"ratio": 0.0 if st["q50"] < 1.0 else round(st["q20"] / st["q50"], 2), **st}
+    cache_put(key, out)
+    return out
+
 def api_opentopo_elevation(ctx: RunContext, lat, lon):
     """Point elevation from OpenTopography's global Copernicus 30m DSM; requires a personal API key."""
     api_key = config.key("OPENTOPOGRAPHY_API_KEY")
@@ -293,8 +395,8 @@ def api_elevation(ctx: RunContext, lat, lon):
     key = f"elev:{lat:.4f},{lon:.4f}"
     if (v := cache_get(key)) is not None:
         return v
-    r = _get(ctx, "open-meteo-elev", "https://api.open-meteo.com/v1/elevation",
-             params={"latitude": f"{lat:.4f}", "longitude": f"{lon:.4f}"})
+    url, extra = openmeteo_url("elevation", "/v1/elevation")
+    r = _get(ctx, "open-meteo-elev", url, params={"latitude": f"{lat:.4f}", "longitude": f"{lon:.4f}", **extra})
     if r is None:
         return None
     try:
@@ -332,9 +434,10 @@ def api_openmeteo_extremes(ctx: RunContext, lat, lon):
     key = f"om3:{lat:.1f},{lon:.1f}"
     if (v := cache_get(key)) is not None:
         return tuple(v)
-    r = _get(ctx, "open-meteo-archive", "https://archive-api.open-meteo.com/v1/archive", params={
+    url, extra = openmeteo_url("archive", "/v1/archive")
+    r = _get(ctx, "open-meteo-archive", url, params={
         "latitude": f"{lat:.3f}", "longitude": f"{lon:.3f}", "start_date": "2015-01-01", "end_date": "2024-12-31",
-        "daily": "wind_gusts_10m_max,temperature_2m_max,precipitation_sum", "wind_speed_unit": "ms", "timezone": "UTC"})
+        "daily": "wind_gusts_10m_max,temperature_2m_max,precipitation_sum", "wind_speed_unit": "ms", "timezone": "UTC", **extra})
     if r is None:
         return None
     try:
@@ -410,7 +513,7 @@ def api_firms(ctx: RunContext, lat, lon):
 
 
 # ----------------------------------------------------------------------------- orchestration
-def _extract_one(a: dict, ctx: RunContext) -> dict:
+def _extract_one(a: dict, ctx: RunContext, scenario: str = "current") -> dict:
     lat, lon, st = a["lat"], a["lon"], a["state"]
     syn = synthetic(lat, lon, st)
     out = dict(asset_id=a["asset_id"], coast_km=syn["coast_km"],
@@ -495,6 +598,21 @@ def _extract_one(a: dict, ctx: RunContext) -> dict:
     else:
         out["landslide_index"], src["landslide"] = float("nan"), "Unavailable"
 
+    # RIVER FLOOD indicator (GloFAS discharge): real data or nothing.
+    g = api_glofas(ctx, lat, lon)
+    if g:
+        out["river_flood_ratio"], src["river"] = g["ratio"], "OpenMeteo_GloFAS_API"
+    else:
+        out["river_flood_ratio"], src["river"] = float("nan"), "Unavailable"
+
+    # CLIMATE CHANGE signal for the CMIP6 scenario (per-site delta).
+    out["dT_api"], out["wind_ratio_api"] = float("nan"), float("nan")
+    if SCENARIOS[scenario].get("api"):
+        cd = api_climate_delta(ctx, lat, lon)
+        if cd:
+            out["dT_api"] = cd["dT"]
+            out["wind_ratio_api"] = cd["wind_ratio"] if cd.get("wind_ratio") else float("nan")
+
     for h in HAZARDS + EXTRA_HAZARDS:
         out[f"src_{h}"] = src[h]
     return out
@@ -508,8 +626,16 @@ def source_weight(label: str) -> float:
 def apply_scenario(h: pd.DataFrame, scenario: str) -> pd.DataFrame:
     s = SCENARIOS[scenario]
     h = h.copy()
-    h["heat_c"] = h["heat_c"] + s["dT"]
-    h["wind_ms"] = h["wind_ms"] * s["wind"]
+    dT, wind = s["dT"], s["wind"]
+    if s.get("api") and "dT_api" in h:
+        have = h["dT_api"].notna()
+        dT = h["dT_api"].where(have, s["dT"])
+        wind = h["wind_ratio_api"].where(h["wind_ratio_api"].notna(), s["wind"])
+        h["scenario_source"] = np.where(have, f"CMIP6 {CLIMATE_MODEL} (Open-Meteo Climate API)", "parametric fallback (SSP5-8.5 numbers)")
+    else:
+        h["scenario_source"] = "parametric uplift" if scenario != "current" else "none"
+    h["heat_c"] = h["heat_c"] + dT
+    h["wind_ms"] = h["wind_ms"] * wind
     h["wildfire_score"] = (h["wildfire_score"] * s["fire"]).clip(upper=100)
     depth = h["flood_zone"].map(FLOOD_DEPTH_M).fillna(0.0)
     if "flood_depth_m_raw" in h:
@@ -531,7 +657,7 @@ def extract_hazards(assets: pd.DataFrame, scenario: str = "current", ctx: RunCon
     ctx = ctx or RunContext()
     rows = assets[["asset_id", "lat", "lon", "state"]].to_dict("records")
     with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as ex:
-        res = list(ex.map(lambda a: _extract_one(a, ctx), rows))
+        res = list(ex.map(lambda a: _extract_one(a, ctx, scenario), rows))
     h = pd.DataFrame(res)
     h = apply_scenario(h, scenario)
     w = np.mean([[source_weight(v) for v in h[f"src_{x}"]] for x in HAZARDS], axis=0)
@@ -545,6 +671,7 @@ def extract_hazards(assets: pd.DataFrame, scenario: str = "current", ctx: RunCon
         "source_counts": {x: h[f"src_{x}"].value_counts().to_dict() for x in HAZARDS + EXTRA_HAZARDS},
         "hazards_not_assessed": [x for x in EXTRA_HAZARDS if h[f"src_{x}"].eq("Unavailable").all()],
         "slr_assets": int(h["slr_applied"].sum()),
+        "scenario_sources": h["scenario_source"].value_counts().to_dict(),
     }
     return h, meta
 

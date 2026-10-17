@@ -9,8 +9,16 @@ from html import escape as _esc
 
 import pandas as pd
 
-from .hazard_registry import (ALL_HAZARDS, HAZARDS, NOT_ASSESSED, SEVERITY_LEVELS, SEVERITY_ORDER, STATUS_LABEL,
-                              confidence_class, mitigation_actions)
+from .hazard_registry import (
+    ALL_HAZARDS,
+    HAZARDS,
+    NOT_ASSESSED,
+    SEVERITY_LEVELS,
+    SEVERITY_ORDER,
+    STATUS_LABEL,
+    confidence_class,
+    mitigation_actions,
+)
 
 CSS = """
 <style>
@@ -207,10 +215,21 @@ def map_frame(df: pd.DataFrame, hazard: str = "dominant") -> pd.DataFrame:
         lvl = 0 if hide else SEVERITY_ORDER.get(sev, 1)
         rows.append({
             "lat": r["lat"], "lon": r["lon"], "fill": rgb + [0 if hide else 215], "line": [226, 232, 240, 255] if not hide else [148, 163, 184, 255],
-            "size_px": 7 + 5 * lvl,
+            "size_px": 8 + 3 * lvl,
             "name_html": esc(r.get("name")),
             "detail_html": esc(f'{HAZARDS[h].label if h else "No dominant hazard"}: '
                                f'{"no data" if hide else sev}{" (illustrative)" if st == "illustrative" else ""}'
                                f' · overall {r.get("risk_tier")} {r.get("risk_score") if pd.notna(r.get("risk_score")) else ""}'),
         })
     return pd.DataFrame(rows)
+
+
+def fit_view(df: pd.DataFrame, width_px: int = 900, height_px: int = 520) -> tuple[float, float, float]:
+    """(lat, lon, zoom) that frames all assets with a margin. A single site gets a city-level zoom."""
+    import math
+    lat0, lat1, lon0, lon1 = df["lat"].min(), df["lat"].max(), df["lon"].min(), df["lon"].max()
+    clat, clon = (lat0 + lat1) / 2, (lon0 + lon1) / 2
+    lat_span = max(lat1 - lat0, 0.02) * 1.35
+    lon_span = max((lon1 - lon0) * max(math.cos(math.radians(clat)), 0.2), 0.02) * 1.35
+    z = min(math.log2(360 * width_px / 512 / lon_span), math.log2(180 * height_px / 512 / lat_span))
+    return float(clat), float(clon), float(max(1.0, min(11.0, z)))
