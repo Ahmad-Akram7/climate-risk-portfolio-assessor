@@ -69,3 +69,10 @@ def test_manual_rows_validate_through_ingest():
     df = manual_entry.rows_to_dataframe([{"name": "A", "asset_class": "office", "replacement_value": 1e6, "state": "TX", "lat": 29.7, "lon": -95.3}])
     assert df.loc[0, "asset_id"] == "M-001"
     assert ingestion.ingest(df).n_valid == 1
+
+
+def test_landslide_class_raster_maps_to_index(monkeypatch):
+    calls = {"landslide_susceptibility": None, "pakistan_landslide": 4.0}
+    monkeypatch.setattr(hazards, "local_raster", lambda name, lat, lon, nodata_default=None: calls.get(name))
+    assert hazards.LANDSLIDE_CLASS_INDEX[4] == 70.0
+    assert calls["pakistan_landslide"] == 4.0
