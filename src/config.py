@@ -32,7 +32,7 @@ CACHE_DIR = Path(os.getenv("CRPA_CACHE_DIR", ROOT / ".cache"))
 MAX_ASSETS = int(os.getenv("CRPA_MAX_ASSETS", "500"))
 CACHE_TTL_DAYS = int(os.getenv("CRPA_CACHE_TTL_DAYS", "30"))
 HTTP_TIMEOUT = float(os.getenv("CRPA_HTTP_TIMEOUT", "6"))
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "300"))
 OFFLINE = os.getenv("CRPA_OFFLINE", "0") == "1"  # skip all network calls
 MAX_WORKERS = int(os.getenv("CRPA_MAX_WORKERS", "8"))
 # Open-Meteo is free for non-commercial use. A paid key switches every Open-Meteo call to the customer-* hosts.
