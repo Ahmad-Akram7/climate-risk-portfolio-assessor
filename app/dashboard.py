@@ -317,7 +317,7 @@ else:
         if res["qa"]["issue_counts"]:
             with st.expander(f"Data quality: {res['qa']['rows_valid']}/{res['qa']['rows_in']} rows valid, {len(res['qa']['issues'])} issue(s)", expanded=res["qa"]["rows_valid"] < res["qa"]["rows_in"]):
                 st.dataframe(pd.DataFrame(res["qa"]["issues"]), use_container_width=True, hide_index=True)
-        st.caption(s.get("loss_basis", ""))
+        st.caption(s.get("loss_basis", "") + f" Flood loss covers {s.get('flood_loss_coverage_assets', 0)} of {s['n_assets']} assets ({s.get('flood_loss_coverage_pct', 0)}%).")
         st.caption(f"Processed in {res['elapsed_s']}s")
 
     with tabs[1]:

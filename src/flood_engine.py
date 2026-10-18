@@ -90,8 +90,13 @@ def calculate(assets: pd.DataFrame, hazards: pd.DataFrame, source_meta: dict) ->
             ffe = None
         arch, arch_method = archetype(asset)
         events = []
+        has_rp_cols = any(f"flood_depth_m_rp{r:03d}" in h.index and pd.notna(h.get(f"flood_depth_m_rp{r:03d}")) for r in RETURN_PERIODS)
         for rp in RETURN_PERIODS:
-            depth = _event_depth(base_depth, rp, src) if base_depth is not None else float("nan")
+            if has_rp_cols:
+                col = h.get(f"flood_depth_m_rp{rp:03d}")
+                depth = float(col) if col is not None and pd.notna(col) else float("nan")
+            else:
+                depth = _event_depth(base_depth, rp, src) if base_depth is not None else float("nan")
             if math.isnan(depth):
                 continue
             rel, depth_method = relative_depth(depth, ffe)
