@@ -42,6 +42,32 @@ CURVES = {
     "heat":     dict(col="heat_c",            k=0.50, x0=48.0, max_loss=0.10, unit="deg C"),
 }
 
+# Optional user calibration: data/calibration/fragility.json, e.g. {"wind": {"k": 0.2, "x0": 60, "max_loss": 0.35}}.
+# Use it to replace the uncalibrated defaults with parameters fitted to your own loss or claims data.
+def _load_overrides() -> str:
+    import json
+
+    from . import config
+    path = config.DATA_DIR / "calibration" / "fragility.json"
+    if not path.exists():
+        return "default (uncalibrated)"
+    try:
+        data = json.loads(path.read_text())
+        for hz, vals in data.items():
+            if hz not in CURVES or not isinstance(vals, dict):
+                raise ValueError(f"unknown hazard {hz!r}")
+            for key, v in vals.items():
+                if key not in ("k", "x0", "max_loss") or not isinstance(v, (int, float)) or isinstance(v, bool):
+                    raise ValueError(f"bad parameter {hz}.{key}")
+            if not 0 < vals.get("max_loss", CURVES[hz]["max_loss"]) <= 1 or vals.get("k", CURVES[hz]["k"]) <= 0:
+                raise ValueError(f"{hz}: k must be above 0 and max_loss in (0, 1]")
+            CURVES[hz].update(vals)
+        return "user calibration file"
+    except Exception as e:  # a bad file must not silently change results
+        warnings.warn(f"Ignoring {path.name}: {e}", stacklevel=2)
+        return "default (uncalibrated)"
+
+
 # Hazard-only indices: (input column, value at index 0, value at index 100). Linear between. Screening thresholds,
 # not validated; the drought index is the length of the dry spell, not a drought anomaly (SPI/SPEI).
 INDEX_SCALES = {
@@ -49,6 +75,31 @@ INDEX_SCALES = {
     "landslide": dict(col="landslide_index",  lo=0.0,   hi=100.0),
     "river":     dict(col="river_flood_ratio", lo=2.0,  hi=20.0),
 }
+
+CURVE_SOURCE = _load_overrides()
+
+# Building-attribute adjustment to the wind curve midpoint (m/s). Assumed screening values, NOT calibrated to
+# loss data. They apply only when the attribute is supplied; otherwise the generic curve is used.
+WIND_CONSTRUCTION_SHIFT = [("mobile", -10.0), ("temporary", -10.0), ("timber", -5.0), ("wood", -5.0),
+                           ("light", -5.0), ("unreinforced", -4.0), ("masonry", -3.0), ("brick", -3.0),
+                           ("steel", 2.0), ("reinforced", 4.0), ("concrete", 4.0), ("rc", 4.0)]
+
+
+def wind_vulnerability_shift(df: pd.DataFrame) -> np.ndarray:
+    """Shift of the wind-curve midpoint per asset from construction type, year built and height. 0 when unknown."""
+    n = len(df)
+    shift = np.zeros(n)
+    ctype = df["construction_type"].fillna("").astype(str).str.lower() if "construction_type" in df else pd.Series([""] * n)
+    for i, t in enumerate(ctype):
+        shift[i] += next((v for key, v in WIND_CONSTRUCTION_SHIFT if key in t), 0.0)
+    yr = _num(df, "year_built")
+    shift += np.where(yr < 1980, -3.0, 0.0) + np.where(yr >= 2010, 2.0, 0.0)
+    h = _num(df, "building_height_m")
+    st = _num(df, "stories")
+    tall = (h >= 30) | (st >= 8)
+    shift += np.where(tall, -2.0, 0.0)
+    return np.clip(shift, -12.0, 8.0)
+
 
 # multiplier on score and loss (consequence of failure / business interruption)
 CRITICALITY = {"hospital": 1.5, "data_center": 1.3, "infrastructure": 1.25, "industrial": 1.05,
@@ -94,7 +145,8 @@ def _damage_probs(df: pd.DataFrame, intensities: dict, factor: float = 1.0) -> d
     engine = pd.to_numeric(df["flood_damage_ratio"], errors="coerce").to_numpy(dtype=float) \
         if "flood_damage_ratio" in df else np.full(len(df), np.nan)
     for hz, c in CURVES.items():
-        p = sigmoid_damage(intensities[hz] * factor, c["k"], c["x0"])
+        x0 = c["x0"] + (df["wind_x0_shift"].to_numpy(dtype=float) if hz == "wind" and "wind_x0_shift" in df else 0.0)
+        p = sigmoid_damage(intensities[hz] * factor, c["k"], x0)
         if hz == "flood":
             # Flood engine ratio is already a loss ratio; dividing by max_loss gives a probability comparable with
             # the other hazards (loss ratio = p x max_loss), so the loss is not scaled by max_loss twice.
@@ -126,6 +178,8 @@ def score_assets(assets: pd.DataFrame, hazards: pd.DataFrame) -> pd.DataFrame:
     df["criticality"] = crit
     value = _num(df, "replacement_value")
     intens = {hz: _num(df, c["col"]) for hz, c in CURVES.items()}
+    df["wind_x0_shift"] = wind_vulnerability_shift(df)
+    df["vulnerability_basis"] = np.where(df["wind_x0_shift"] != 0, "building attributes (assumed, uncalibrated)", "generic curve")
     probs = _damage_probs(df, intens)
 
     loss_ratio = np.zeros(n)
@@ -236,7 +290,13 @@ def portfolio_summary(df: pd.DataFrame, meta: dict) -> dict:
         "method_note": ("Current release is a transparent screening model. It uses documented hazard-specific "
                         "screening functions and asset-class modifiers; it is not a calibrated catastrophe or "
                         "actuarial annual-loss model. Missing exposure attributes remain explicit."),
-        "flood_aal_usd": round(_sum(df, "flood_aal_usd"), 2),
+        # AAL needs at least three return periods per asset; otherwise it is withheld, never shown as 0.
+        "flood_aal_usd": round(_sum(df, "flood_aal_usd"), 2) if "flood_aal_usd" in df and df["flood_aal_usd"].notna().any() else None,
+        "flood_event_loss_usd": round(_sum(df, "flood_event_loss_usd"), 2) if "flood_event_loss_usd" in df and df["flood_event_loss_usd"].notna().any() else None,
+        "flood_loss_coverage_assets": int(df["flood_event_loss_usd"].notna().sum()) if "flood_event_loss_usd" in df else 0,
+        "flood_loss_coverage_pct": round(100 * float(df["flood_event_loss_usd"].notna().mean()), 1) if "flood_event_loss_usd" in df and len(df) else 0.0,
+        "loss_basis": ("Flood loss is the highest supplied return-period event (see flood_event_return_period). Wind, heat and fire "
+                       "use the worst value in the climate record. These are not one common return period."),
         "flood_pml_100_usd": round(_sum(df, "flood_pml_100_usd"), 2),
         "flood_pml_500_usd": round(_sum(df, "flood_pml_500_usd"), 2),
     }

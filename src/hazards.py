@@ -408,6 +408,25 @@ def api_elevation(ctx: RunContext, lat, lon):
     return v
 
 
+FLOOD_RETURN_PERIODS = (10, 20, 50, 100, 200, 500)
+
+
+def flood_rp_depths(lat: float, lon: float, rp20_depth: float) -> dict:
+    """Depth per return period from local rasters: RP20 is `flood_depth_jrc_rp20y.tif`, others `flood_depth_rp<NNN>.tif`.
+
+    Nodata inside a raster's footprint means no mapped depth (0.0), the same convention as the RP20 layer. A return
+    period without a raster, or one that does not cover the site, gets no column so it is treated as missing.
+    """
+    out = {"flood_depth_m_rp020": rp20_depth}
+    for rp in FLOOD_RETURN_PERIODS:
+        if rp == 20:
+            continue
+        v = local_raster(f"flood_depth_rp{rp:03d}", lat, lon, nodata_default=0.0)
+        if v is not None and math.isfinite(v) and v >= 0:
+            out[f"flood_depth_m_rp{rp:03d}"] = v
+    return out
+
+
 def mean_annual_max_cdd(dates, precip_mm, dry_threshold_mm: float = 1.0) -> float | None:
     """ETCCDI CDD: mean over years of the longest run of consecutive dry days (precip < threshold).
 
@@ -534,6 +553,7 @@ def _extract_one(a: dict, ctx: RunContext, scenario: str = "current") -> dict:
             out["flood_zone"], out["flood_depth_m_raw"] = ("JRC_RP20Y" if d > 0 else "X"), d
             src["flood"] = ("JRC_Global_FloodHazard_RP20Y_Local" if d > 0
                             else "JRC_RP20Y_NoMappedDepth_Local")
+            out.update(flood_rp_depths(lat, lon, d))
         else:
             out["flood_zone"], src["flood"] = syn["flood_zone"], "Synthetic_Flood"
 

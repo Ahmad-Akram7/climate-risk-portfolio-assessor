@@ -8,3 +8,4 @@ python-multipart>=0.0.9
 streamlit>=1.40
 plotly>=5.20
 pydeck>=0.9
+rasterio>=1.3

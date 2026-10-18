@@ -291,6 +291,9 @@ else:
         st.warning("Hazard data is mostly **synthetic demo data**. Results show the method only. Connect real data under Setup.")
     if s.get("hazards_not_assessed"):
         st.info("Not assessed (no data, which is not the same as low risk): " + ", ".join(HAZARDS[h].label for h in s["hazards_not_assessed"]) + ".")
+    _ls = hazards.layer_status()
+    if any(_ls["rasters"].values()) and not _ls["rasterio"]:
+        st.warning("Hazard rasters are present but the rasterio library is not installed, so they are being ignored. Install rasterio.")
     with tabs[0]:
         c = st.columns(4)
         c[0].metric("Assets", s["n_assets"])
@@ -314,6 +317,7 @@ else:
         if res["qa"]["issue_counts"]:
             with st.expander(f"Data quality: {res['qa']['rows_valid']}/{res['qa']['rows_in']} rows valid, {len(res['qa']['issues'])} issue(s)", expanded=res["qa"]["rows_valid"] < res["qa"]["rows_in"]):
                 st.dataframe(pd.DataFrame(res["qa"]["issues"]), use_container_width=True, hide_index=True)
+        st.caption(s.get("loss_basis", "") + f" Flood loss covers {s.get('flood_loss_coverage_assets', 0)} of {s['n_assets']} assets ({s.get('flood_loss_coverage_pct', 0)}%).")
         st.caption(f"Processed in {res['elapsed_s']}s")
 
     with tabs[1]:
