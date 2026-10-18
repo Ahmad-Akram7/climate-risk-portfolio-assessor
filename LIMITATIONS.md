@@ -31,3 +31,7 @@ The default curves are not calibrated to any loss record. Wind damage probabilit
 Construction type, year built, height and stories shift the wind curve midpoint by assumed screening amounts (see `WIND_CONSTRUCTION_SHIFT` in `src/fragility.py`). These values are judgement, not fitted to data. Assets without these fields use the generic curve, and the `vulnerability_basis` column says which was used.
 
 To calibrate with your own loss or claims data, create `data/calibration/fragility.json`, for example `{"wind": {"k": 0.2, "x0": 60, "max_loss": 0.35}}`. An invalid file is ignored with a warning. Public disaster totals such as EM-DAT are country-level and cannot calibrate asset-level curves on their own.
+
+## Flood annual loss
+
+`flood_aal_usd` is reported only when an asset has at least three flood return periods. With one raster (for example RP20) the engine reports `flood_event_loss_usd` and `flood_event_return_period` instead, and the portfolio AAL is left empty. Wind, heat and fire use the worst value in the climate record, so the combined score does not describe one common return period (see `loss_basis` in the summary).

@@ -290,7 +290,11 @@ def portfolio_summary(df: pd.DataFrame, meta: dict) -> dict:
         "method_note": ("Current release is a transparent screening model. It uses documented hazard-specific "
                         "screening functions and asset-class modifiers; it is not a calibrated catastrophe or "
                         "actuarial annual-loss model. Missing exposure attributes remain explicit."),
-        "flood_aal_usd": round(_sum(df, "flood_aal_usd"), 2),
+        # AAL needs at least three return periods per asset; otherwise it is withheld, never shown as 0.
+        "flood_aal_usd": round(_sum(df, "flood_aal_usd"), 2) if "flood_aal_usd" in df and df["flood_aal_usd"].notna().any() else None,
+        "flood_event_loss_usd": round(_sum(df, "flood_event_loss_usd"), 2) if "flood_event_loss_usd" in df and df["flood_event_loss_usd"].notna().any() else None,
+        "loss_basis": ("Flood loss is the highest supplied return-period event (see flood_event_return_period). Wind, heat and fire "
+                       "use the worst value in the climate record. These are not one common return period."),
         "flood_pml_100_usd": round(_sum(df, "flood_pml_100_usd"), 2),
         "flood_pml_500_usd": round(_sum(df, "flood_pml_500_usd"), 2),
     }

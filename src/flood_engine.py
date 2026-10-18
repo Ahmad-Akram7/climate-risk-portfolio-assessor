@@ -69,6 +69,9 @@ def _event_depth(base_depth: float, rp: int, source: str) -> float:
     return base_depth if rp == 0 else float("nan")
 
 
+MIN_RP_FOR_AAL = 3  # fewer points cannot describe the loss-exceedance curve, so no AAL is reported
+
+
 def _aal(losses: list[tuple[int, float]]) -> float:
     # Integrate loss against AEP; include zero loss at AEP=1 and truncate tails.
     points = sorted([(1.0, 0.0)] + [(aep(rp), loss) for rp, loss in losses], reverse=True)
@@ -103,9 +106,9 @@ def calculate(assets: pd.DataFrame, hazards: pd.DataFrame, source_meta: dict) ->
             events.append(event); all_events.append(event)
         if events:
             losses = [(e["return_period_years"], e["loss_usd"]) for e in events]
-            rows.append({"asset_id": asset.asset_id, "flood_events": events, "flood_aal_usd": round(_aal(losses), 2), "flood_pml_100_usd": next((e["loss_usd"] for e in events if e["return_period_years"] == 100), None), "flood_pml_500_usd": next((e["loss_usd"] for e in events if e["return_period_years"] == 500), None), "flood_damage_ratio": round(max(e["loss_usd"] for e in events) / float(asset.replacement_value), 6), "flood_supported_return_periods": [e["return_period_years"] for e in events], "flood_tail_truncated": len(events) < len(RETURN_PERIODS), "flood_quality_gate": "SCREENING ONLY", "flood_provenance_date": date.today().isoformat()})
+            rows.append({"asset_id": asset.asset_id, "flood_events": events, "flood_aal_usd": round(_aal(losses), 2) if len(losses) >= MIN_RP_FOR_AAL else None, "flood_event_loss_usd": max(losses, key=lambda x: x[0])[1], "flood_event_return_period": max(losses, key=lambda x: x[0])[0], "flood_pml_100_usd": next((e["loss_usd"] for e in events if e["return_period_years"] == 100), None), "flood_pml_500_usd": next((e["loss_usd"] for e in events if e["return_period_years"] == 500), None), "flood_damage_ratio": round(max(e["loss_usd"] for e in events) / float(asset.replacement_value), 6), "flood_supported_return_periods": [e["return_period_years"] for e in events], "flood_tail_truncated": len(events) < len(RETURN_PERIODS), "flood_quality_gate": "SCREENING ONLY", "flood_provenance_date": date.today().isoformat()})
         else:
-            rows.append({"asset_id": asset.asset_id, "flood_events": [], "flood_aal_usd": None, "flood_pml_100_usd": None, "flood_pml_500_usd": None, "flood_damage_ratio": None, "flood_supported_return_periods": [], "flood_tail_truncated": True, "flood_quality_gate": "INSUFFICIENT DATA", "flood_provenance_date": date.today().isoformat()})
+            rows.append({"asset_id": asset.asset_id, "flood_events": [], "flood_aal_usd": None, "flood_event_loss_usd": None, "flood_event_return_period": None, "flood_pml_100_usd": None, "flood_pml_500_usd": None, "flood_damage_ratio": None, "flood_supported_return_periods": [], "flood_tail_truncated": True, "flood_quality_gate": "INSUFFICIENT DATA", "flood_provenance_date": date.today().isoformat()})
     result = pd.DataFrame(rows)
-    meta = {"flood_engine": "CRPA-FLOOD-2.0-screening", "return_periods_requested": list(RETURN_PERIODS), "event_count": len(all_events), "aal_method": "trapezoidal integration over AEP-loss points with zero-loss AEP=1; tails truncated", "vulnerability_model_type": "fallback_screening", "vertical_datum_uncertainty": True, "duration_available": False, "velocity_available": False, "source": source_meta.get("source_counts", {}).get("flood", {})}
+    meta = {"flood_engine": "CRPA-FLOOD-2.0-screening", "return_periods_requested": list(RETURN_PERIODS), "event_count": len(all_events), "aal_method": f"trapezoidal integration over AEP-loss points with zero-loss AEP=1; tails truncated; reported only with at least {MIN_RP_FOR_AAL} return periods", "vulnerability_model_type": "fallback_screening", "vertical_datum_uncertainty": True, "duration_available": False, "velocity_available": False, "source": source_meta.get("source_counts", {}).get("flood", {})}
     return result, meta
