@@ -48,3 +48,11 @@ def test_flood_rp_depths_reads_each_raster(monkeypatch):
     monkeypatch.setattr(hazards, "local_raster", lambda name, lat, lon, nodata_default=None: seen.get(name))
     out = hazards.flood_rp_depths(30.0, 70.0, 1.0)
     assert out == {"flood_depth_m_rp020": 1.0, "flood_depth_m_rp010": 0.4, "flood_depth_m_rp100": 2.5}
+
+
+def test_aal_bounds_bracket_and_tail_is_explicit():
+    from src.flood_engine import _aal, _aal_tail_flat
+    losses = [(10, 10.0), (100, 20.0), (500, 50.0)]
+    assert abs(_aal_tail_flat(losses) - 0.002 * 50.0) < 1e-12
+    assert _aal(losses) + _aal_tail_flat(losses) > _aal(losses)
+    assert abs(_aal(losses) + _aal_tail_flat(losses) - (_aal(losses) + 0.1)) < 1e-12

@@ -35,3 +35,9 @@ To calibrate with your own loss or claims data, create `data/calibration/fragili
 ## Flood annual loss
 
 `flood_aal_usd` is reported only when an asset has at least three flood return periods. With one raster (for example RP20) the engine reports `flood_event_loss_usd` and `flood_event_return_period` instead, and the portfolio AAL is left empty. Wind, heat and fire use the worst value in the climate record, so the combined score does not describe one common return period (see `loss_basis` in the summary).
+
+## Flood annual loss tail and raster behaviour
+
+AAL is reported as two numbers. `flood_aal_usd` is a lower bound: loss beyond the rarest supplied return period is set to zero. `flood_aal_upper_usd` extends the largest loss flat down to a probability of zero. Neither is a fitted tail model, and the real value can fall outside the pair if loss keeps growing beyond that point. No single point estimate is shown.
+
+The local RP10 and RP20 rasters are about 1 km and sparse: roughly 5 percent of cells carry a value, and every mapped cell is above zero. A site on a blank cell therefore has no mapped depth, which is not proof of no flood risk. `flood_depth_max_5km_m` gives the largest RP20 depth within about 5 km as context. About 1,400 cells sit at exactly 30.00 m, so the depths look capped and should not be read as physical maxima. Run `python scripts/validate_rasters.py portfolio.csv` to check the rasters.

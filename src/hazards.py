@@ -411,6 +411,31 @@ def api_elevation(ctx: RunContext, lat, lon):
 FLOOD_RETURN_PERIODS = (10, 20, 50, 100, 200, 500)
 
 
+def nearby_flood_depth(lat: float, lon: float, radius_px: int = 5):
+    """Largest RP20 depth within about 5 km (radius_px cells at ~1 km). None if the raster is unavailable.
+
+    The RP20 layer is sparse: a site on a nodata cell has no mapped depth at its own cell, which is not proof of
+    no flood risk when mapped flooding sits a few cells away.
+    """
+    p = config.HAZARD_DIR / "flood_depth_jrc_rp20y.tif"
+    if not p.exists():
+        return None
+    try:
+        import rasterio
+        from rasterio.windows import Window
+        with rasterio.open(p) as src:
+            if src.crs is None or src.crs.to_epsg() != 4326:
+                return None
+            row, col = src.index(lon, lat)
+            win = Window(col - radius_px, row - radius_px, 2 * radius_px + 1, 2 * radius_px + 1)
+            a = src.read(1, window=win, boundless=True, fill_value=src.nodata).astype(float)
+            if src.nodata is not None:
+                a = np.where(a == src.nodata, np.nan, a)
+            return float(np.nanmax(a)) if np.isfinite(a).any() else 0.0
+    except Exception:
+        return None
+
+
 def flood_rp_depths(lat: float, lon: float, rp20_depth: float) -> dict:
     """Depth per return period from local rasters: RP20 is `flood_depth_jrc_rp20y.tif`, others `flood_depth_rp<NNN>.tif`.
 
@@ -554,6 +579,7 @@ def _extract_one(a: dict, ctx: RunContext, scenario: str = "current") -> dict:
             src["flood"] = ("JRC_Global_FloodHazard_RP20Y_Local" if d > 0
                             else "JRC_RP20Y_NoMappedDepth_Local")
             out.update(flood_rp_depths(lat, lon, d))
+            out["flood_depth_max_5km_m"] = nearby_flood_depth(lat, lon)
         else:
             out["flood_zone"], src["flood"] = syn["flood_zone"], "Synthetic_Flood"
 
