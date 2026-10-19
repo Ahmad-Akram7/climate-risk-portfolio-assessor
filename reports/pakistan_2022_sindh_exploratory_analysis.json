@@ -1,8 +1,8 @@
 {
   "analysis": "Exploratory district-level association between published 2022 flood-extent percentage and reported house damage counts",
   "n_matched_districts": 23,
-  "sum_partially_damaged_houses_in_matched_districts": 1171029,
-  "sum_fully_damaged_houses_in_matched_districts": 709869,
+  "sum_partially_damaged_houses_in_matched_districts": 1171077,
+  "sum_fully_damaged_houses_in_matched_districts": 709821,
   "sum_total_damaged_houses_in_matched_districts": 1880898,
   "min_pct_admin_area_flooded": 3.7037942,
   "max_pct_admin_area_flooded": 97.9370455,
