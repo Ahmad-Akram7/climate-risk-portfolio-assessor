@@ -111,7 +111,8 @@ def main() -> int:
             print(f"ERROR: checksum mismatch for {filename}: {actual}")
         else:
             print(f"OK: {filename} checksum verified ({path.stat().st_size:,} bytes)")
-    manifest_path = OUT / "acquisition_manifest.json"
+    manifest_path = ROOT / "reports" / "pakistan_2022_flood_raster_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"Manifest: {manifest_path}")
     return 1 if failed else 0
