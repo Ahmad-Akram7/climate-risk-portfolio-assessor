@@ -43,7 +43,8 @@ def test_loss_gate_masks_usd_losses_everywhere_but_keeps_risk_metrics(monkeypatc
         "flood_aal_usd": 20,
         "mean_risk_score": 55,
     }
-    assets = pd.DataFrame({"replacement_value": [1000], "expected_loss_usd": [120], "loss_flood_usd": [90], "risk_score": [55]})
+    assets = pd.DataFrame({"replacement_value": [1000], "expected_loss_usd": [120], "loss_flood_usd": [90], "risk_score": [55],
+                           "flood_events": [[{"return_period_years": 100, "loss_usd": 75, "depth_m": 2.0}]]})
     safe_summary, safe_assets, state = apply_loss_publication_policy(
         summary, assets, [{"validation_status": "experimental", "validation_reference": None}]
     )
@@ -58,6 +59,8 @@ def test_loss_gate_masks_usd_losses_everywhere_but_keeps_risk_metrics(monkeypatc
     assert pd.isna(safe_assets.loc[0, "expected_loss_usd"])
     assert pd.isna(safe_assets.loc[0, "loss_flood_usd"])
     assert safe_assets.loc[0, "risk_score"] == 55
+    assert safe_assets.loc[0, "flood_events"][0]["loss_usd"] is None
+    assert safe_assets.loc[0, "flood_events"][0]["depth_m"] == 2.0
 
 
 def test_override_keeps_figures_but_marks_them_experimental(monkeypatch):
