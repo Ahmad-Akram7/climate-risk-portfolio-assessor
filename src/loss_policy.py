@@ -7,6 +7,7 @@ or an explicit internal-only environment override is set.
 from __future__ import annotations
 
 import copy
+import logging
 import os
 
 import pandas as pd
@@ -42,6 +43,8 @@ def publication_state(functions=None) -> dict:
     )
     override = allow_experimental_losses()
     allowed = empirically_validated or override
+    if override and not empirically_validated:
+        logging.getLogger(__name__).warning("%s=1: exposing experimental, unvalidated monetary loss estimates; internal research only", OVERRIDE_ENV)
     if empirically_validated:
         status = "published_validated"
         note = "Monetary estimates are enabled because all registered damage functions have empirical validation references."
