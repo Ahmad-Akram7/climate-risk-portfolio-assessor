@@ -62,4 +62,4 @@ Use fire detections as **evidence of satellite-observed thermal anomalies**, not
 - `data/verified_reference_evidence.csv`: source-linked published aggregate benchmarks.
 - `docs/VERIFIED_DATA_AUDIT.md`: source descriptions, use boundaries, and integration/validation plan.
 
-No raw raster download or building-level validation dataset is included in this change.
+An exploratory 23-district Sindh join between published 2022 flood-extent percentages and official PDMA house-damage counts is now included in `data/pakistan_2022_sindh_flood_damage_exploratory.csv`, with results and limitations in `docs/PAKISTAN_2022_FLOOD_EVIDENCE.md`. The TU Wien raster acquisition/checksum workflow is included, but the raster binaries have not been downloaded in this execution environment and no building-level validation dataset is available. The district-level join is not suitable for calibrating damage curves.
