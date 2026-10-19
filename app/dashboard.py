@@ -104,6 +104,11 @@ def chart_severity(s: dict) -> go.Figure:
 
 
 def chart_loss(s: dict) -> go.Figure:
+    if not s.get("loss_publication", {}).get("allowed", s.get("total_expected_loss_usd") is not None):
+        fig = go.Figure()
+        fig.add_annotation(text="Withheld: damage functions are experimental and not empirically validated",
+                           x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False, font=dict(size=14))
+        return chart_style(fig, 330, "Financial loss estimates withheld")
     items = sorted(((h, s["hazard_summary"][h]["scenario_loss_usd"] or 0.0) for h in DAMAGE_HAZARDS), key=lambda x: x[1])
     fig = go.Figure(go.Bar(y=[HAZARDS[h].label for h, _ in items], x=[v for _, v in items], orientation="h",
                            marker_color=[HAZARDS[h].color for h, _ in items], text=[usd(v) for _, v in items],
@@ -290,6 +295,12 @@ else:
     if meta["confidence"] < 0.3:
         st.warning("Hazard data is mostly **synthetic demo data**. Results show the method only. Connect real data under Setup.")
     st.caption(f"Model status: **{s['model_status'].capitalize()}**. {s['model_status_note']}")
+    loss_policy = s.get("loss_publication", {"allowed": s.get("total_expected_loss_usd") is not None, "override_used": False,
+                                             "note": "Monetary loss estimates are experimental and not validated."})
+    if not loss_policy.get("allowed"):
+        st.warning("**Financial loss estimates withheld.** " + loss_policy.get("note", ""))
+    elif loss_policy.get("override_used"):
+        st.error("**INTERNAL OVERRIDE ACTIVE — EXPERIMENTAL LOSSES.** " + loss_policy.get("note", ""))
     if s.get("hazards_not_assessed"):
         st.info("Not assessed (no data, which is not the same as low risk): " + ", ".join(HAZARDS[h].label for h in s["hazards_not_assessed"]) + ".")
     _ls = hazards.layer_status()
@@ -302,7 +313,10 @@ else:
         c[2].metric("Avg risk score", s["mean_risk_score"] if s["mean_risk_score"] is not None else "n/a")
         c[3].metric("High + Critical", s["tier_counts"]["High"] + s["tier_counts"]["Critical"])
         c = st.columns(3)
-        c[0].metric("Scenario loss", usd(s["total_expected_loss_usd"]), f"{s['expected_loss_pct_of_value']}% of value", delta_color="off")
+        if loss_policy.get("allowed") and s.get("total_expected_loss_usd") is not None:
+            c[0].metric("Scenario loss", usd(s["total_expected_loss_usd"]), f"{s['expected_loss_pct_of_value']}% of value", delta_color="off")
+        else:
+            c[0].metric("Scenario loss", "WITHHELD", help="Experimental damage functions are not empirically validated.")
         c[1].metric("Value-weighted risk", s["value_weighted_risk_score"])
         c[2].metric("Low risk, verified", s["low_risk_verified_assets"], help="Low rating backed by real data on every modelled hazard.")
         a, b = st.columns(2)
@@ -318,7 +332,10 @@ else:
         if res["qa"]["issue_counts"]:
             with st.expander(f"Data quality: {res['qa']['rows_valid']}/{res['qa']['rows_in']} rows valid, {len(res['qa']['issues'])} issue(s)", expanded=res["qa"]["rows_valid"] < res["qa"]["rows_in"]):
                 st.dataframe(pd.DataFrame(res["qa"]["issues"]), use_container_width=True, hide_index=True)
-        st.caption(s.get("loss_basis", "") + f" Flood loss covers {s.get('flood_loss_coverage_assets', 0)} of {s['n_assets']} assets ({s.get('flood_loss_coverage_pct', 0)}%).")
+        if loss_policy.get("allowed"):
+            st.caption(s.get("loss_basis", "") + f" Flood loss covers {s.get('flood_loss_coverage_assets', 0)} of {s['n_assets']} assets ({s.get('flood_loss_coverage_pct', 0)}%).")
+        else:
+            st.caption(f"Flood event coverage metadata: {s.get('flood_loss_coverage_assets', 0)} of {s['n_assets']} assets ({s.get('flood_loss_coverage_pct', 0)}%). Monetary values are withheld.")
         st.caption(f"Processed in {res['elapsed_s']}s")
 
     with tabs[1]:
@@ -351,7 +368,9 @@ else:
 
     with tabs[3]:
         cols = ["asset_id", "name", "state", "asset_class", "replacement_value", "risk_score", "risk_tier", "dominant_hazard", "overall_status",
-                "expected_loss_usd", "p_flood", "p_wind", "p_wildfire", "p_heat"]
+                "p_flood", "p_wind", "p_wildfire", "p_heat"]
+        if loss_policy.get("allowed"):
+            cols.insert(9, "expected_loss_usd")
         st.dataframe(df[cols].sort_values("risk_score", ascending=False), use_container_width=True, hide_index=True,
                      column_config={"risk_score": st.column_config.ProgressColumn("risk_score", min_value=0, max_value=100),
                                     "replacement_value": st.column_config.NumberColumn(format="$%d"),
