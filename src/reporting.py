@@ -78,6 +78,8 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
          "wildfire, extreme heat and elevation. Intensities are converted to damage probabilities with sigmoid "
          "fragility curves, combined across hazards with a survival model, and multiplied by an asset-class "
          "criticality factor. Expected loss is probability x loss ratio x replacement value.", ""]
+    if s.get("loss_publication", {}).get("override_used"):
+        L[4:4] = ["**INTERNAL OVERRIDE ACTIVE: monetary estimates are experimental, unvalidated, and for internal research only. Do not use for client reporting or disclosure.**", ""]
     srcs = meta.get("source_counts", {})
     for h, d in srcs.items():
         L.append(f"- {h}: " + ", ".join(f"{k} ({v} assets)" for k, v in d.items()))
