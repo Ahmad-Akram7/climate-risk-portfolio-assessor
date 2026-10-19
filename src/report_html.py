@@ -251,7 +251,7 @@ def build_html_report(result: dict, brand: dict | None = None) -> str:
 <h2>What each hazard measures</h2><table><tbody>{''.join(notes)}</tbody></table>
 {narrative}
 <h2>How to read this report</h2>
-<p class="note">This is a screening assessment. Damage curves are transparent defaults, not calibrated to observed losses. Loss is a scenario figure, not an annual expected loss. Source quality ranks data by resolution and directness and is not a probability. Future scenarios use a single climate model or fixed uplifts, not a full ensemble. A qualified professional should review it before external disclosure.</p>
+<p class="note">Model status: experimental. Damage-function parameters are assumed and not validated, so results are not defensible probabilities of damage. This is a screening assessment. Damage curves are transparent defaults, not calibrated to observed losses. Loss is a scenario figure, not an annual expected loss. Source quality ranks data by resolution and directness and is not a probability. Future scenarios use a single climate model or fixed uplifts, not a full ensemble. A qualified professional should review it before external disclosure.</p>
 <h2>Data sources and attribution</h2><ul class="note">{src}</ul>
 <footer>{esc(brand.get('footer') or name)} · Generated {esc(time.strftime('%Y-%m-%d %H:%M'))}. Not an engineering study, actuarial valuation, or legal advice.</footer>
 </div></body></html>"""

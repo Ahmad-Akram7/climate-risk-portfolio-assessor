@@ -289,6 +289,7 @@ else:
     tabs = st.tabs(["Overview", "Map", "Hazard Risk", "Assets", "Report", "Setup"])
     if meta["confidence"] < 0.3:
         st.warning("Hazard data is mostly **synthetic demo data**. Results show the method only. Connect real data under Setup.")
+    st.caption(f"Model status: **{s['model_status'].capitalize()}**. {s['model_status_note']}")
     if s.get("hazards_not_assessed"):
         st.info("Not assessed (no data, which is not the same as low risk): " + ", ".join(HAZARDS[h].label for h in s["hazards_not_assessed"]) + ".")
     _ls = hazards.layer_status()

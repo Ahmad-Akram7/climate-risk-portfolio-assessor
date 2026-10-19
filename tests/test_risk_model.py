@@ -200,3 +200,15 @@ def test_map_frame_marks_no_data_hollow_and_size_tracks_severity():
     none_row = viz.map_frame(df, "drought").iloc[0]
     assert none_row["fill"][3] == 0 and none_row["size_px"] < sev_row["size_px"]
     assert sev_row["fill"][:3] == [0x94, 0xA3, 0xB8]  # wind hazard colour
+
+
+def test_vulnerability_registry_covers_every_curve_and_blocks_unsupported_status():
+    from src import fragility
+    from src.vulnerability_registry import REGISTRY, check_registry, overall_status
+    assert {e["hazard"] for e in REGISTRY} >= set(fragility.CURVES)
+    assert check_registry() == [] and overall_status() == "experimental"
+    REGISTRY.append({"function_id": "x", "hazard": "flood", "validation_status": "empirically_validated", "validation_reference": None})
+    try:
+        assert check_registry() != []
+    finally:
+        REGISTRY.pop()

@@ -33,6 +33,7 @@ from .hazard_registry import (
     SEVERITY_ORDER,
     source_weight,
 )
+from .vulnerability_registry import REGISTRY, overall_status
 
 # hazard: input column, k, x0, max loss ratio if damaged, unit
 CURVES = {
@@ -296,6 +297,11 @@ def portfolio_summary(df: pd.DataFrame, meta: dict) -> dict:
         "flood_event_loss_usd": round(_sum(df, "flood_event_loss_usd"), 2) if "flood_event_loss_usd" in df and df["flood_event_loss_usd"].notna().any() else None,
         "flood_loss_coverage_assets": int(df["flood_event_loss_usd"].notna().sum()) if "flood_event_loss_usd" in df else 0,
         "flood_loss_coverage_pct": round(100 * float(df["flood_event_loss_usd"].notna().mean()), 1) if "flood_event_loss_usd" in df and len(df) else 0.0,
+        "model_status": overall_status(),
+        "model_status_note": ("Experimental: damage-function parameters are assumed, not validated. Results are exploratory "
+                              "screening, not defensible probabilities of damage or engineering-grade losses."),
+        "vulnerability_functions": [{k: e[k] for k in ("function_id", "hazard", "parameter_source", "validation_status")}
+                                    for e in REGISTRY],
         "loss_basis": ("Flood loss is the highest supplied return-period event (see flood_event_return_period). Wind, heat and fire "
                        "use the worst value in the climate record. These are not one common return period."),
         "flood_pml_100_usd": round(_sum(df, "flood_pml_100_usd"), 2),
