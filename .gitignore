@@ -33,3 +33,5 @@ Github/
 
 # Windows artifact
 NUL
+# Large downloaded research rasters (download with scripts; do not commit binaries)
+data/raw/pakistan_2022_flood/
