@@ -14,7 +14,7 @@ The table is a third-party analysis, not a primary UNOSAT product. Its pct_flood
 
 ## Source B — official reported house damage
 
-Sindh Provincial Disaster Management Authority (PDMA), *Flood 2022 — Houses Damaged, Province Status*, as of 24 October 2022. The published map reports 1,171,200 partially damaged and 709,869 fully damaged houses across its listed Sindh areas, total 1,881,069. The district table says it is based on Deputy Commissioners' reports via the Provincial Emergency Operation Center.
+Sindh Provincial Disaster Management Authority (PDMA), *Flood 2022 — Houses Damaged, Province Status*, as of 24 October 2022. The published map reports 1,171,200 partially damaged and 709,821 fully damaged houses across its listed Sindh areas, total 1,881,069. The district table says it is based on Deputy Commissioners' reports via the Provincial Emergency Operation Center.
 
 Source PDF: [Houses Damaged — Province Status — 24 Oct 2022](https://pdma.gos.pk/Documents/Flood/Flood_2022/Flood%20Inundation%20GIS%20Maps/Houses%20Damaged-Province%20Status-24-10-2022.pdf). The [PDMA Flood 2022 Maps index](https://pdma.gos.pk/flood-2022-maps/) lists the official map.
 
