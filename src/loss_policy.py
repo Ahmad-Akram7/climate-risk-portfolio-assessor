@@ -86,4 +86,9 @@ def apply_loss_publication_policy(summary: dict, assets: pd.DataFrame, functions
         for col in safe_assets.columns:
             if col.endswith("_usd") and col != "total_replacement_value_usd":
                 safe_assets[col] = float("nan")
+            else:
+                # Flood-event details are nested dictionaries inside a DataFrame object column.
+                safe_assets[col] = safe_assets[col].map(
+                    lambda item: _mask_summary(item) if isinstance(item, (dict, list)) else item
+                )
     return safe_summary, safe_assets, state
