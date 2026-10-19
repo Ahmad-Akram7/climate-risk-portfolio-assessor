@@ -1,0 +1,58 @@
+{
+  "analysis": "Exploratory district-level association between published 2022 flood-extent percentage and reported house damage counts",
+  "n_matched_districts": 23,
+  "sum_partially_damaged_houses_in_matched_districts": 1171029,
+  "sum_fully_damaged_houses_in_matched_districts": 709869,
+  "sum_total_damaged_houses_in_matched_districts": 1880898,
+  "min_pct_admin_area_flooded": 3.7037942,
+  "max_pct_admin_area_flooded": 97.9370455,
+  "pearson_r_raw_pct_vs_house_count": 0.289142,
+  "pearson_p_raw_pct_vs_house_count": 0.180851,
+  "spearman_rho_pct_vs_house_count": 0.181818,
+  "spearman_p_pct_vs_house_count": 0.406371,
+  "pearson_r_log1p_pct_vs_log1p_house_count": 0.36159,
+  "pearson_p_log1p_pct_vs_log1p_house_count": 0.090012,
+  "top_5_by_flooded_area_pct": [
+    {
+      "district": "Jacobabad",
+      "pct_admin_area_flooded_2022": 97.9370455,
+      "houses_damaged_as_of_2022_10_24": 89993
+    },
+    {
+      "district": "Shikarpur",
+      "pct_admin_area_flooded_2022": 96.8976158,
+      "houses_damaged_as_of_2022_10_24": 35387
+    },
+    {
+      "district": "Larkana",
+      "pct_admin_area_flooded_2022": 96.5105589,
+      "houses_damaged_as_of_2022_10_24": 226980
+    },
+    {
+      "district": "Kashmore",
+      "pct_admin_area_flooded_2022": 90.2844907,
+      "houses_damaged_as_of_2022_10_24": 119698
+    },
+    {
+      "district": "Badin",
+      "pct_admin_area_flooded_2022": 67.5608868,
+      "houses_damaged_as_of_2022_10_24": 50575
+    }
+  ],
+  "qa": {
+    "matched_district_count": 23,
+    "unique_district_names": true,
+    "flooded_area_percentage_range_0_to_100": true,
+    "partial_plus_full_equals_total_for_each_row": true,
+    "sum_of_matched_district_damage_counts": 1880898,
+    "PDMA_published_Sindh_total_all_listed_areas": 1881069,
+    "difference_karachi_administrative_units": 171
+  },
+  "interpretation_limits": [
+    "Flood extent source is a third-party 2026 Zenodo analysis of VIIRS-derived flood polygons and administrative boundaries.",
+    "PDMA Sindh damage counts are district-level figures as of 2022-10-24, not geolocated building records.",
+    "Sources differ in methods, dates, and measurement; district-level association cannot establish causality.",
+    "No flood-depth-to-damage ratios, replacement values, insurance losses, or building-level vulnerability parameters are present.",
+    "This result must not be used to calibrate or validate CRPA monetary loss curves."
+  ]
+}
