@@ -58,12 +58,17 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
     hz = sorted(s["mean_hazard_probability"].items(), key=lambda kv: -kv[1])
     conc = list(s["state_concentration_pct"].items())[:3]
     top = s["top_assets"][:3]
+    losses_allowed = s.get("loss_publication", {}).get("allowed", s.get("total_expected_loss_usd") is not None)
+    loss_summary = (
+        f"Modelled scenario loss is {_usd(s['total_expected_loss_usd'])} ({s['expected_loss_pct_of_value']}% of value)."
+        if losses_allowed and s.get("total_expected_loss_usd") is not None
+        else "Monetary loss estimates are withheld because the damage functions are experimental and not empirically validated."
+    )
     L = ["# Physical Climate Risk Assessment", "",
          f"*Scenario: {meta['scenario_label']} - generated {time.strftime('%Y-%m-%d')}*", "",
          "## 1. Executive summary", "",
          f"The portfolio contains {s['n_assets']} assets with a total replacement value of "
-         f"{_usd(s['total_replacement_value_usd'])}. Modelled scenario expected loss is "
-         f"{_usd(s['total_expected_loss_usd'])} ({s['expected_loss_pct_of_value']}% of value). "
+         f"{_usd(s['total_replacement_value_usd'])}. {loss_summary} "
          f"The value-weighted risk score is {s['value_weighted_risk_score']}/100. "
          f"{tiers.get('Critical', 0)} asset(s) are rated Critical, {tiers.get('High', 0)} High, "
          f"{tiers.get('Medium', 0)} Medium and {tiers.get('Low', 0)} Low.", "",
@@ -73,6 +78,8 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
          "wildfire, extreme heat and elevation. Intensities are converted to damage probabilities with sigmoid "
          "fragility curves, combined across hazards with a survival model, and multiplied by an asset-class "
          "criticality factor. Expected loss is probability x loss ratio x replacement value.", ""]
+    if s.get("loss_publication", {}).get("override_used"):
+        L[4:4] = ["**INTERNAL OVERRIDE ACTIVE: monetary estimates are experimental, unvalidated, and for internal research only. Do not use for client reporting or disclosure.**", ""]
     srcs = meta.get("source_counts", {})
     for h, d in srcs.items():
         L.append(f"- {h}: " + ", ".join(f"{k} ({v} assets)" for k, v in d.items()))
@@ -102,8 +109,9 @@ def deterministic_report(summary: dict, meta: dict, frameworks: list[str]) -> st
     L.append("Highest-risk assets:")
     L.append("")
     for t in top:
+        loss_detail = f", modelled loss {_usd(t['expected_loss_usd'])}" if losses_allowed and t.get("expected_loss_usd") is not None else ""
         L.append(f"- {t['name']} ({t['asset_id']}, {t['state']}, {t['asset_class']}): score {t['risk_score']}, "
-                 f"{t['risk_tier']}, driven by {t['dominant_hazard']}, modelled loss {_usd(t['expected_loss_usd'])}.")
+                 f"{t['risk_tier']}, driven by {t['dominant_hazard']}{loss_detail}.")
     L += ["", "## 4. Recommended mitigation strategies", ""]
     dom = max(s["dominant_hazard_counts"].items(), key=lambda kv: kv[1])[0] if s["dominant_hazard_counts"] else "none"
     if dom in MITIGATION:
@@ -145,9 +153,14 @@ def _compact_context(summary: dict, meta: dict, limit: int = 12000) -> str:
 
 def _llm_prompt(summary: dict, meta: dict, frameworks: list[str]) -> list[dict]:
     ctx = _compact_context(summary, meta)
+    loss_instruction = (
+        " Monetary loss estimates are withheld by policy: do not infer, calculate, or state any USD loss, AAL, PML, or loss percentage; explicitly say they are withheld."
+        if not summary.get("loss_publication", {}).get("allowed", summary.get("total_expected_loss_usd") is not None)
+        else " If the loss-publication status is an internal override, prominently label all financial estimates experimental and not validated."
+    )
     sys = ("You are a climate-risk analyst writing a screening-level physical climate risk report. Use ONLY the figures in "
            "the JSON provided; never invent numbers, sources or regulations. If data confidence is below 0.8 say so "
-           "prominently. Write in prose with markdown headings.")
+           "prominently. Write in prose with markdown headings." + loss_instruction)
     usr = (f"Write a report aligned to: {', '.join(frameworks)}. Sections: Executive summary; Methodology and data "
            "sources; Material risk findings; Recommended mitigation strategies; Limitations and caveats. "
            f"End with this disclaimer verbatim: {DISCLAIMER}\n\nDATA:\n{ctx}")

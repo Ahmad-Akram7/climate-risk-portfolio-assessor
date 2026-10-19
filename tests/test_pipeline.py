@@ -56,14 +56,21 @@ def test_end_to_end(tmp_path):
     assert r["summary"]["n_assets"] == 15
     assert r["meta"]["confidence"] == 0.0
     df = r["assets"]
-    assert df.risk_score.between(0, 100).all() and (df.expected_loss_usd <= df.replacement_value).all()
+    assert df.risk_score.between(0, 100).all()
+    assert df.expected_loss_usd.isna().all()  # experimental financial estimates are withheld by default
+    assert r["summary"]["total_expected_loss_usd"] is None
+    assert r["summary"]["loss_publication"]["status"] == "withheld_experimental"
+    assert "Monetary loss estimates are withheld" in r["report_md"]
+    assert "Financial loss estimates" in r["report_html"]
     for f in ("csv", "geojson", "summary", "qa", "report_md", "report_json", "ai_log"):
         assert (tmp_path / r["files"][f]).exists()
     assert "SYNTHETIC" in r["report_md"]
     json.loads((tmp_path / "portfolio_risk_summary.json").read_text())
 
 
-def test_scenarios_increase_risk(tmp_path):
+def test_scenarios_increase_risk(tmp_path, monkeypatch):
+    # Explicit internal-only override lets this calculation test compare the underlying experimental estimates.
+    monkeypatch.setenv("CRPA_ALLOW_EXPERIMENTAL_LOSSES", "1")
     cur = run_assessment(TEMPLATE, "current", False, out_dir=tmp_path / "a")["summary"]["total_expected_loss_usd"]
     hot = run_assessment(TEMPLATE, "ssp585", False, out_dir=tmp_path / "b")["summary"]["total_expected_loss_usd"]
     assert hot > cur

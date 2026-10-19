@@ -15,6 +15,7 @@ from . import config, fragility, hazards, ingestion, reporting
 from .exposure import enrich_assets
 from .flood_engine import calculate as calculate_flood
 from .report_html import build_html_report
+from .loss_policy import apply_loss_publication_policy
 
 ASSESSMENT_BASIS = {
     "current": "Historical hazard data (ERA5 2015-2024 extremes or local layers); no climate-change uplift",
@@ -73,6 +74,9 @@ def run_assessment(source, scenario: str = "current", use_llm: bool = True, fram
     scored["scenario"] = meta["scenario_label"]
     scored["assessment_basis"] = ASSESSMENT_BASIS[scenario]
     summary = fragility.portfolio_summary(scored, meta)
+    # Apply one publication gate before any report, API payload, or downloadable output is created.
+    summary, scored, loss_publication = apply_loss_publication_policy(summary, scored)
+    meta["loss_publication"] = loss_publication
 
     p("Report generation", 0.85)
     rep = reporting.generate_report(summary, meta, frameworks, use_llm)
@@ -135,8 +139,9 @@ def main(argv=None) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
     s = r["summary"]
+    loss_text = f"${s['total_expected_loss_usd']:,.0f}" if s.get("total_expected_loss_usd") is not None else "WITHHELD (experimental model)"
     print(f"\nAssets: {s['n_assets']}  Value: ${s['total_replacement_value_usd']:,.0f}  "
-          f"Scenario loss: ${s['total_expected_loss_usd']:,.0f}  Mean score: {s['mean_risk_score']}  "
+          f"Scenario loss: {loss_text}  Mean score: {s['mean_risk_score']}  "
           f"Tiers: {s['tier_counts']}")
     print(f"Data confidence: {r['meta']['confidence']} ({hazards.confidence_band(r['meta']['confidence'])})  "
           f"Report mode: {r['report_log']['mode']}  Time: {r['elapsed_s']}s")

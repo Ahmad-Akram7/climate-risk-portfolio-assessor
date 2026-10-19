@@ -23,6 +23,8 @@ def test_api_flow():
             break
         time.sleep(0.1)
     assert j["status"] == "done" and j["summary"]["n_assets"] == 15
+    assert j["summary"]["total_expected_loss_usd"] is None
+    assert j["summary"]["loss_publication"]["status"] == "withheld_experimental"
     assert c.get(f"/api/v1/jobs/{jid}/files/portfolio_risk_report.md").status_code == 200
     assert c.get(f"/api/v1/jobs/{jid}/files/../../etc/passwd").status_code in (404, 422)
 
@@ -64,6 +66,7 @@ def test_api_does_not_leak_server_paths_and_serves_assets():
     a = allr["assets"][0]
     assert {"risk_score", "severity_flood", "status_drought", "confidence_flood"} <= a.keys()
     assert a["severity_drought"] == "Not assessed" and a["risk_drought"] is None  # missing data stays missing
+    assert a["expected_loss_usd"] is None  # experimental USD losses are withheld in API assets
     sub = c.get(f"/api/v1/jobs/{jid}/assets", params={"hazard": "wind", "severity": "High"}).json()
     assert all(x["severity_wind"] == "High" for x in sub["assets"])
     assert c.get(f"/api/v1/jobs/{jid}/assets", params={"hazard": "nope"}).status_code == 422

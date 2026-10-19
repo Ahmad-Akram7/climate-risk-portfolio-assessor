@@ -49,7 +49,9 @@ If you have local files, the app also reads FEMA flood zone GeoPackages and WGS8
 
 ## How a score is built
 
-For the four damage hazards, a hazard intensity (flood depth, gust speed, fire score, peak temperature) goes through a sigmoid fragility curve to give a damage probability. The curves are inspired by HAZUS but are not calibrated, and they live in `src/fragility.py`. Probabilities combine as one minus the product of survival chances, scaled by a factor for the asset class. The scenario loss is probability times loss ratio times value. It is a scenario figure, not an annual expected loss.
+For the four damage hazards, a hazard intensity (flood depth, gust speed, fire score, peak temperature) goes through a sigmoid fragility curve to give a damage probability. The curves are inspired by HAZUS but are not calibrated, and they live in `src/fragility.py`. Probabilities combine as one minus the product of survival chances, scaled by a factor for the asset class. The scenario loss is probability times loss ratio times value. It is a scenario figure, not an annual expected loss. **Because the damage functions are experimental and lack empirical validation, monetary loss figures (including AAL/PML and portfolio totals) are withheld by default** across the dashboard, API, reports and exports. Hazard metrics and screening risk scores remain available.
+
+For internal research only, `CRPA_ALLOW_EXPERIMENTAL_LOSSES=1` explicitly enables these figures and displays an experimental-model warning. Do not set this variable in production or client-facing deployments. The override does not change model validation status.
 
 Severity is Low below 25, Medium 25 to 49, High 50 to 74, and Critical from 75. A Low rating is marked "verified" only when every damage hazard has real data and the source quality is at least 0.5. The score range shown beside each asset is a plus or minus 15 percent sensitivity on hazard intensity. It is not a confidence interval.
 

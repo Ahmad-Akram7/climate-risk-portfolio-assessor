@@ -173,11 +173,15 @@ def _sources(meta: dict) -> list[tuple[str, str]]:
 
 def summary_sentence(s: dict, meta: dict) -> str:
     t = s["tier_counts"]
-    return (f"The portfolio has {s['n_assets']} assets worth {usd(s['total_replacement_value_usd'])}. "
-            f"Under the {meta.get('scenario_label', 'selected')} scenario the screening model estimates a loss of "
-            f"{usd(s['total_expected_loss_usd'])}, or {s['expected_loss_pct_of_value']}% of value. "
-            f"{t.get('Critical', 0)} rated Critical and {t.get('High', 0)} rated High. "
-            f"Assets with a Low rating backed by real data on every modelled hazard: {s.get('low_risk_verified_assets', 0)}.")
+    base = f"The portfolio has {s['n_assets']} assets worth {usd(s['total_replacement_value_usd'])}. "
+    if not s.get("loss_publication", {}).get("allowed", s.get("total_expected_loss_usd") is not None):
+        base += "Monetary loss estimates are withheld because the damage functions are experimental and not empirically validated. "
+    elif s.get("total_expected_loss_usd") is not None:
+        base += (f"Under the {meta.get('scenario_label', 'selected')} scenario the screening model estimates a loss of "
+                 f"{usd(s['total_expected_loss_usd'])}, or {s['expected_loss_pct_of_value']}% of value. ")
+    base += (f"{t.get('Critical', 0)} rated Critical and {t.get('High', 0)} rated High. "
+             f"Assets with a Low rating backed by real data on every modelled hazard: {s.get('low_risk_verified_assets', 0)}.")
+    return base
 
 
 def build_html_report(result: dict, brand: dict | None = None) -> str:
@@ -193,11 +197,23 @@ def build_html_report(result: dict, brand: dict | None = None) -> str:
     if meta["confidence"] < 0.3 or n_ill:
         banner = ('<div class="warn"><strong>Synthetic demonstration data.</strong> Some or all hazard values are not real. '
                   'Use this report to see the method only, not for decisions or disclosure.</div>')
+    loss_state = s.get("loss_publication", {"allowed": s.get("total_expected_loss_usd") is not None, "override_used": False,
+                                           "note": "Monetary estimates are experimental and not validated."})
+    loss_banner = ""
+    if not loss_state.get("allowed"):
+        loss_banner = f'<div class="warn"><strong>Financial estimates withheld.</strong> {esc(loss_state.get("note", ""))}</div>'
+    elif loss_state.get("override_used"):
+        loss_banner = f'<div class="warn"><strong>INTERNAL OVERRIDE — EXPERIMENTAL ESTIMATES.</strong> {esc(loss_state.get("note", ""))}</div>'
 
-    kpi = [(usd(s["total_replacement_value_usd"]), "Total value"), (usd(s["total_expected_loss_usd"]), "Scenario loss"),
-           (f"{s['expected_loss_pct_of_value']}%", "Loss, share of value"), (f"{s['value_weighted_risk_score']}", "Value-weighted score"),
-           (str(s["tier_counts"]["High"] + s["tier_counts"]["Critical"]), "High or Critical assets"),
-           (str(s["low_risk_verified_assets"]), "Verified low risk")]
+    kpi = [(usd(s["total_replacement_value_usd"]), "Total value")]
+    if loss_state.get("allowed") and s.get("total_expected_loss_usd") is not None:
+        kpi += [(usd(s["total_expected_loss_usd"]), "Scenario loss"),
+                (f"{s['expected_loss_pct_of_value']}%", "Loss, share of value")]
+    else:
+        kpi += [("Withheld", "Scenario loss")]
+    kpi += [(f"{s['value_weighted_risk_score']}", "Value-weighted score"),
+            (str(s["tier_counts"]["High"] + s["tier_counts"]["Critical"]), "High or Critical assets"),
+            (str(s["low_risk_verified_assets"]), "Verified low risk")]
     kpis = "".join(f'<div class="kpi"><b>{esc(v)}</b><span>{esc(k)}</span></div>' for v, k in kpi)
 
     hs = s["hazard_summary"]
@@ -209,6 +225,8 @@ def build_html_report(result: dict, brand: dict | None = None) -> str:
         sev_rows.append((h, HAZARDS[h].label, counts))
     loss_items = [(h, HAZARDS[h].label, hs[h]["scenario_loss_usd"] or 0.0) for h in DAMAGE_HAZARDS]
     loss_items.sort(key=lambda x: -x[2])
+    if not loss_state.get("allowed"):
+        loss_items = []
 
     top = df.sort_values("risk_score", ascending=False, na_position="last").head(10)
     rows = []
@@ -216,9 +234,10 @@ def build_html_report(result: dict, brand: dict | None = None) -> str:
         dom = r["dominant_hazard"]
         dom_html = chip(dom) if dom in HAZARDS else esc(dom.replace("_", " "))
         sc = f"{r['risk_score']:.0f}" if pd.notna(r["risk_score"]) else "n/a"
+        asset_loss = usd(r["expected_loss_usd"]) if loss_state.get("allowed") and pd.notna(r.get("expected_loss_usd")) else "Withheld"
         rows.append(f"<tr><td><strong>{esc(r['name'])}</strong><br><span class='muted'>{esc(r['asset_id'])} · {esc(r['state'])} · {esc(r['asset_class'])}</span></td>"
                     f"<td>{sev_badge(r['risk_tier'], r['overall_status'])} <span class='muted'>{sc}</span></td><td>{dom_html}</td>"
-                    f"<td>{esc(usd(r['expected_loss_usd']))}</td></tr>")
+                    f"<td>{esc(asset_loss)}</td></tr>")
     top_html = ("<table><thead><tr><th>Asset</th><th>Overall</th><th>Main hazard</th><th>Scenario loss</th></tr></thead><tbody>"
                 + "".join(rows) + "</tbody></table>")
 
@@ -238,14 +257,19 @@ def build_html_report(result: dict, brand: dict | None = None) -> str:
         narrative = ""
 
     src = "".join(f"<li>{esc(d)}. <span class='muted'>{esc(a)}</span></li>" for d, a in _sources(meta))
+    loss_section = (
+        f"<h2>Where the scenario loss comes from</h2>{svg_bars(loss_items)}"
+        if loss_state.get("allowed")
+        else '<h2>Financial loss estimates</h2><p class="note">Withheld by the model-publication policy until the damage functions have empirical validation evidence.</p>'
+    )
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(name)} - Physical climate risk assessment</title><style>:root{{--brand:{color}}}{CSS}</style></head><body><div class="page">
 <div class="cover"><div class="org">{esc(name)}</div><h1>Physical climate risk assessment</h1>
 <p>{esc(meta.get('scenario_label', ''))} · {esc(time.strftime('%d %B %Y'))} · {s['n_assets']} assets</p></div>
-{banner}<p>{esc(summary_sentence(s, meta))}</p><div class="kpis">{kpis}</div>
+{banner}{loss_banner}<p>{esc(summary_sentence(s, meta))}</p><div class="kpis">{kpis}</div>
 <h2>Severity by hazard</h2>{svg_stacked(sev_rows)}
 <p class="note">Severity: Low under 25, Medium 25 to 49, High 50 to 74, Critical 75 and above (screening thresholds). Hatched or dashed means synthetic input or no data.</p>
-<h2>Where the scenario loss comes from</h2>{svg_bars(loss_items)}
+{loss_section}
 <p class="note">Only flood, wind, fire and heat have a damage function. River flood, drought and landslide are hazard indices and add no loss.</p>
 <h2>Assets that need attention</h2>{top_html}
 <h2>What each hazard measures</h2><table><tbody>{''.join(notes)}</tbody></table>
