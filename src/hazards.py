@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -715,6 +716,11 @@ def extract_hazards(assets: pd.DataFrame, scenario: str = "current", ctx: RunCon
         res = list(ex.map(lambda a: _extract_one(a, ctx, scenario), rows))
     h = pd.DataFrame(res)
     h = apply_scenario(h, scenario)
+    if os.getenv("CRPA_REAL_MODE") == "1":  # after apply_scenario, which turns a missing flood zone into zero depth; real runs never keep demo values
+        for hz, col in {"flood": "flood_depth_m", "wind": "wind_ms", "heat": "heat_c", "wildfire": "wildfire_score", "elevation": "elevation_m"}.items():
+            syn = h[f"src_{hz}"].astype(str).str.startswith("Synthetic")
+            h.loc[syn, col] = np.nan
+            h.loc[syn, f"src_{hz}"] = "Unavailable"
     w = np.mean([[source_weight(v) for v in h[f"src_{x}"]] for x in HAZARDS], axis=0)
     h["data_confidence"] = np.round(w, 3)
     meta = {
@@ -723,6 +729,7 @@ def extract_hazards(assets: pd.DataFrame, scenario: str = "current", ctx: RunCon
         "confidence": round(float(h["data_confidence"].mean()), 3),
         "apis_disabled_after_failures": ctx.disabled_apis(),
         "offline_mode": ctx.offline,
+        "real_mode": os.getenv("CRPA_REAL_MODE") == "1",
         "source_counts": {x: h[f"src_{x}"].value_counts().to_dict() for x in HAZARDS + EXTRA_HAZARDS},
         "hazards_not_assessed": [x for x in EXTRA_HAZARDS if h[f"src_{x}"].eq("Unavailable").all()],
         "slr_assets": int(h["slr_applied"].sum()),

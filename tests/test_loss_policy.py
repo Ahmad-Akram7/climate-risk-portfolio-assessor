@@ -1,8 +1,11 @@
-import os
 
 import pandas as pd
 
-from src.loss_policy import apply_loss_publication_policy, can_publish_losses, publication_state
+from src.loss_policy import (
+    apply_loss_publication_policy,
+    can_publish_losses,
+    publication_state,
+)
 
 
 def test_experimental_registry_hides_losses_by_default(monkeypatch):

@@ -14,7 +14,6 @@ import pandas as pd
 
 from .vulnerability_registry import REGISTRY
 
-
 OVERRIDE_ENV = "CRPA_ALLOW_EXPERIMENTAL_LOSSES"
 _VALIDATED = "empirically_validated"
 

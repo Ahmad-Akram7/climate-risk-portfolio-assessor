@@ -1,28 +1,54 @@
 """FastAPI backend with async (background) processing.  Run:  uvicorn api.main:app --port 8000"""
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import secrets
 import threading
 import uuid
 from dataclasses import asdict
 
 import pandas as pd
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 
 from src import config, hazards
 from src.hazard_registry import ALL_HAZARDS, HAZARDS, SEVERITY_LEVELS, STATUS_LABEL
 from src.orchestrator import _json_safe, run_assessment
+from src.readiness import readiness
 
 app = FastAPI(title="Climate Risk Portfolio Assessor", version="1.1.0",
               description="Upload a portfolio CSV, get multi-hazard risk scores and a disclosure-style report.")
 JOBS: dict[str, dict] = {}
 _lock = threading.Lock()
-PUBLIC_HIDDEN = {"out_dir"}  # server paths are not returned to clients
+PUBLIC_HIDDEN = {"out_dir", "owner"}  # server paths are not returned to clients
 ASSET_FIELDS = ["asset_id", "name", "state", "asset_class", "lat", "lon", "replacement_value", "scenario",
                 "assessment_basis", "risk_score", "risk_score_low", "risk_score_high", "risk_tier", "overall_status",
                 "overall_confidence", "low_risk_verified", "dominant_hazard", "expected_loss_usd"] + [
     f"{k}_{h}" for h in ALL_HAZARDS for k in ("hazard_index", "risk", "severity", "status", "confidence")]
+
+
+def _owner(x_api_key: str | None = Header(None)) -> str:
+    """Caller identity. With CRPA_API_KEYS set (comma separated) every private route needs a valid X-API-Key.
+
+    shortcut: shared static keys, no rotation or per-key limits; swap for real auth before a multi-tenant launch.
+    """
+    keys = [k.strip() for k in os.getenv("CRPA_API_KEYS", "").split(",") if k.strip()]
+    if not keys:
+        return "open"  # local development only
+    if not x_api_key or not any(secrets.compare_digest(x_api_key, k) for k in keys):
+        raise HTTPException(401, "missing or invalid X-API-Key")
+    return hashlib.sha256(x_api_key.encode()).hexdigest()[:16]
 
 
 def _evict_finished() -> None:
@@ -54,7 +80,13 @@ def _run(job_id: str, data: bytes, scenario: str, use_llm: bool):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "layers": hazards.layer_status()}
+    return {"status": "ok", "auth_required": bool(os.getenv("CRPA_API_KEYS", "").strip()), "layers": hazards.layer_status()}
+
+
+@app.get("/api/v1/readiness")
+def data_readiness(owner: str = Depends(_owner)):
+    """Which data files and keys are present, what is missing, and known defects."""
+    return _json_safe(readiness())
 
 
 @app.get("/api/v1/hazards")
@@ -66,7 +98,7 @@ def hazard_legend():
 
 @app.post("/api/v1/assess", status_code=202)
 async def assess(bg: BackgroundTasks, file: UploadFile = File(...), scenario: str = Form("current"),
-                 use_llm: bool = Form(True)):
+                 use_llm: bool = Form(False), owner: str = Depends(_owner)):  # off by default: it sends a summary to a third party
     if scenario not in hazards.SCENARIOS:
         raise HTTPException(422, f"scenario must be one of {list(hazards.SCENARIOS)}")
     limit = int(config.MAX_UPLOAD_MB * 1024 * 1024)
@@ -77,29 +109,29 @@ async def assess(bg: BackgroundTasks, file: UploadFile = File(...), scenario: st
         raise HTTPException(413, f"file larger than {config.MAX_UPLOAD_MB:g} MB (set CRPA_MAX_UPLOAD_MB to change)")
     job_id = uuid.uuid4().hex[:12]
     with _lock:
-        JOBS[job_id] = dict(job_id=job_id, status="running", progress=0.0, stage="queued")
+        JOBS[job_id] = dict(job_id=job_id, owner=owner, status="running", progress=0.0, stage="queued")
     bg.add_task(_run, job_id, data, scenario, use_llm)
     return {"job_id": job_id, "status_url": f"/api/v1/jobs/{job_id}"}
 
 
-def _get_job(job_id: str) -> dict:
+def _get_job(job_id: str, owner: str) -> dict:
     with _lock:
         j = JOBS.get(job_id)
         j = dict(j) if j else None
-    if not j:
+    if not j or j.get("owner") != owner:  # same answer for unknown and foreign jobs
         raise HTTPException(404, "unknown job")
     return j
 
 
 @app.get("/api/v1/jobs/{job_id}")
-def job(job_id: str):
-    return {k: v for k, v in _get_job(job_id).items() if k not in PUBLIC_HIDDEN}
+def job(job_id: str, owner: str = Depends(_owner)):
+    return {k: v for k, v in _get_job(job_id, owner).items() if k not in PUBLIC_HIDDEN}
 
 
 @app.get("/api/v1/jobs/{job_id}/assets")
-def job_assets(job_id: str, hazard: str | None = None, severity: str | None = None):
+def job_assets(job_id: str, hazard: str | None = None, severity: str | None = None, owner: str = Depends(_owner)):
     """Per-asset results with hazard, severity, status and confidence. Optional filters: hazard, severity."""
-    j = _get_job(job_id)
+    j = _get_job(job_id, owner)
     if j.get("status") != "done":
         raise HTTPException(404, "job not finished")
     if hazard is not None and hazard not in ALL_HAZARDS:
@@ -114,12 +146,12 @@ def job_assets(job_id: str, hazard: str | None = None, severity: str | None = No
     elif hazard:
         df = df[df[f"status_{hazard}"] != "not_assessed"]
     cols = [c for c in ASSET_FIELDS if c in df.columns]
-    return {"count": int(len(df)), "assets": json.loads(json.dumps(_json_safe(df[cols].to_dict("records")), allow_nan=False))}
+    return {"count": len(df), "assets": json.loads(json.dumps(_json_safe(df[cols].to_dict("records")), allow_nan=False))}
 
 
 @app.get("/api/v1/jobs/{job_id}/files/{name}")
-def job_file(job_id: str, name: str):
-    j = _get_job(job_id)
+def job_file(job_id: str, name: str, owner: str = Depends(_owner)):
+    j = _get_job(job_id, owner)
     if j.get("status") != "done":
         raise HTTPException(404, "job not finished")
     allowed = set(j["files"].values())

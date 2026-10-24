@@ -14,8 +14,9 @@ import pandas as pd
 from . import config, fragility, hazards, ingestion, reporting
 from .exposure import enrich_assets
 from .flood_engine import calculate as calculate_flood
-from .report_html import build_html_report
 from .loss_policy import apply_loss_publication_policy
+from .readiness import readiness, readiness_markdown
+from .report_html import build_html_report
 
 ASSESSMENT_BASIS = {
     "current": "Historical hazard data (ERA5 2015-2024 extremes or local layers); no climate-change uplift",
@@ -80,6 +81,8 @@ def run_assessment(source, scenario: str = "current", use_llm: bool = True, fram
 
     p("Report generation", 0.85)
     rep = reporting.generate_report(summary, meta, frameworks, use_llm)
+    meta["readiness"] = readiness(meta, enriched)
+    rep["markdown"] += readiness_markdown(meta["readiness"])
 
     p("Writing outputs", 0.95)
     files = _write_outputs(out, scored, summary, meta, ing, rep)

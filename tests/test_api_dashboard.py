@@ -6,6 +6,7 @@ os.environ["CRPA_OFFLINE"] = "1"
 from fastapi.testclient import TestClient
 
 from api.main import app
+from src.orchestrator import run_assessment
 
 TEMPLATE = "data/templates/portfolio_upload_template.csv"
 
@@ -114,3 +115,28 @@ def test_dashboard_hazard_risk_tab_renders_legend_and_matrix():
     html = " ".join(m.value for m in at.markdown)
     assert "Hazard (colour)" in html and 'scope="row"' in html and "No data" in html
     assert len(at.tabs) == 6
+
+
+def test_api_keys_and_job_ownership(monkeypatch):
+    import io
+    monkeypatch.setenv("CRPA_API_KEYS", "alpha,beta")
+    c = TestClient(app)
+    csv = open(TEMPLATE, "rb").read()
+    assert c.post("/api/v1/assess", files={"file": ("p.csv", io.BytesIO(csv))}).status_code == 401
+    r = c.post("/api/v1/assess", files={"file": ("p.csv", io.BytesIO(csv))}, data={"use_llm": "false"}, headers={"X-API-Key": "alpha"})
+    assert r.status_code == 202
+    jid = r.json()["job_id"]
+    assert c.get(f"/api/v1/jobs/{jid}", headers={"X-API-Key": "alpha"}).status_code == 200
+    assert c.get(f"/api/v1/jobs/{jid}", headers={"X-API-Key": "beta"}).status_code == 404  # foreign job looks unknown
+    assert c.get(f"/api/v1/jobs/{jid}").status_code == 401
+    assert c.get("/api/v1/readiness", headers={"X-API-Key": "alpha"}).json()["known_defects"]
+    assert "owner" not in c.get(f"/api/v1/jobs/{jid}", headers={"X-API-Key": "alpha"}).json()
+
+
+def test_real_mode_never_keeps_synthetic_values(tmp_path, monkeypatch):
+    monkeypatch.setenv("CRPA_REAL_MODE", "1")
+    r = run_assessment(TEMPLATE, "current", False, out_dir=tmp_path)
+    df, s = r["assets"], r["summary"]
+    assert (df["status_wind"] == "not_assessed").all() and (df["status_flood"] == "not_assessed").all()
+    assert not any(str(v).startswith("Synthetic") for col in df if col.startswith("src_") for v in df[col])
+    assert r["meta"]["real_mode"] and s["mean_risk_score"] is None or s["not_assessed_assets"] > 0

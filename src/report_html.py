@@ -16,6 +16,7 @@ from .hazard_registry import (
     NOT_ASSESSED,
     SEVERITY_LEVELS,
 )
+from .readiness import readiness_markdown
 from .viz import esc
 
 SEV_FILL = {"Low": "#94a3b8", "Medium": "#64748b", "High": "#334155", "Critical": "#0f172a", NOT_ASSESSED: "#e2e8f0"}
@@ -251,6 +252,9 @@ def build_html_report(result: dict, brand: dict | None = None) -> str:
             notes.append(f"<tr><td>{chip(h)}</td><td>{usable} of {s['n_assets']} assets rated</td>"
                          f"<td class='muted'>{esc(HAZARDS[h].note)}</td></tr>")
 
+    cov = ""
+    if "readiness" in meta and result.get("report_log", {}).get("mode") != "llm":  # the AI narrative already carries this section
+        cov = f'<div class="narr">{md_to_html(readiness_markdown(meta["readiness"]))}</div>'
     if result.get("report_log", {}).get("mode") == "llm":
         narrative = f'<h2>Analyst narrative</h2><div class="narr">{md_to_html(result["report_md"])}</div><p class="note">Written by an AI model from the figures above. Check it before sharing.</p>'
     else:
@@ -272,7 +276,7 @@ def build_html_report(result: dict, brand: dict | None = None) -> str:
 {loss_section}
 <p class="note">Only flood, wind, fire and heat have a damage function. River flood, drought and landslide are hazard indices and add no loss.</p>
 <h2>Assets that need attention</h2>{top_html}
-<h2>What each hazard measures</h2><table><tbody>{''.join(notes)}</tbody></table>
+{cov}<h2>What each hazard measures</h2><table><tbody>{''.join(notes)}</tbody></table>
 {narrative}
 <h2>How to read this report</h2>
 <p class="note">Model status: experimental. Damage-function parameters are assumed and not validated, so results are not defensible probabilities of damage. This is a screening assessment. Damage curves are transparent defaults, not calibrated to observed losses. Loss is a scenario figure, not an annual expected loss. Source quality ranks data by resolution and directness and is not a probability. Future scenarios use a single climate model or fixed uplifts, not a full ensemble. A qualified professional should review it before external disclosure.</p>

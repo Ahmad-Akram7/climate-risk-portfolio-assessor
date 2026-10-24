@@ -38,6 +38,12 @@ To calibrate with your own loss or claims data, create `data/calibration/fragili
 
 ## Flood annual loss tail and raster behaviour
 
-AAL is reported as two numbers. `flood_aal_usd` is a lower bound: loss beyond the rarest supplied return period is set to zero. `flood_aal_upper_usd` extends the largest loss flat down to a probability of zero. Neither is a fitted tail model, and the real value can fall outside the pair if loss keeps growing beyond that point. No single point estimate is shown.
+AAL is reported as two numbers. `flood_aal_usd` is a lower bound: loss beyond the rarest supplied return period is set to zero. `flood_aal_flat_tail_usd` extends the largest loss flat down to a probability of zero. Neither is a fitted tail model, and the real value can fall outside the pair if loss keeps growing beyond that point. No single point estimate is shown.
 
 The local RP10 and RP20 rasters are about 1 km and sparse: roughly 5 percent of cells carry a value, and every mapped cell is above zero. A site on a blank cell therefore has no mapped depth, which is not proof of no flood risk. `flood_depth_max_5km_m` gives the largest RP20 depth within about 5 km as context. About 1,400 cells sit at exactly 30.00 m, so the depths look capped and should not be read as physical maxima. Run `python scripts/validate_rasters.py portfolio.csv` to check the rasters.
+
+`flood_aal_flat_tail_usd` (earlier named `flood_aal_upper_usd`) holds the largest supported loss constant beyond the rarest return period. That is an extrapolation scenario, not a proven upper bound, since losses can keep rising past the 500-year event.
+
+## Data readiness, real mode and API access
+
+Every run now checks which hazard files and keys are present (`src/readiness.py`). The report, the dashboard Setup tab and `GET /api/v1/readiness` list each missing file with its exact path, flag files that cannot be read, are not WGS84 or miss your assets, name the most and least precise input in the run, and list the known defects of this software. Set `CRPA_REAL_MODE=1` to stop synthetic demo values from reaching a real assessment: those hazards become `not_assessed`. Set `CRPA_API_KEYS` to require an `X-API-Key` header, and each job is visible only to the key that created it. The API no longer sends a portfolio summary to the AI provider unless the request sets `use_llm=true`. Keys are static and shared, with no rotation or per-key rate limit, so replace them with real authentication before a multi-tenant launch.

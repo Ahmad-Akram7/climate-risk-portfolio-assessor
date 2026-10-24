@@ -26,6 +26,7 @@ from src.hazard_registry import (
     SEVERITY_LEVELS,
 )
 from src.orchestrator import run_assessment
+from src.readiness import readiness
 
 TEMPLATE = ROOT / "data" / "templates" / "portfolio_upload_template.csv"
 BRAND = config.brand()
@@ -394,6 +395,16 @@ else:
 
 if res:
     with tabs[5]:
+        st.subheader("What is missing for a more accurate estimate")
+        rd = res["meta"].get("readiness") or readiness()
+        icon = {"ok": "✅", "partial": "🟠", "missing": "⚪"}
+        for i in rd["items"]:
+            st.write(f"{icon[i['status']]} **{i['item']}**: {i['detail']} {i['fix']}")
+        if rd["precise"]:
+            st.caption(f"Most precise input in the last run: {rd['precise']['hazard']}. Weakest: {rd['weakest']['hazard']}.")
+        with st.expander("Known defects of this software"):
+            for d in rd["known_defects"]:
+                st.write("- " + d)
         st.subheader("Data services")
         cards = []
         for sv in SERVICES:
