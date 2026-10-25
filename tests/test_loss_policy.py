@@ -43,7 +43,7 @@ def test_loss_gate_masks_usd_losses_everywhere_but_keeps_risk_metrics(monkeypatc
         "expected_loss_pct_of_value": 12.0,
         "hazard_summary": {"flood": {"scenario_loss_usd": 90}},
         "top_assets": [{"expected_loss_usd": 120}],
-        "flood_aal_usd": 20,
+        "flood_aal_truncated_usd": 20,
         "mean_risk_score": 55,
     }
     assets = pd.DataFrame({"replacement_value": [1000], "expected_loss_usd": [120], "loss_flood_usd": [90], "risk_score": [55],
@@ -57,7 +57,7 @@ def test_loss_gate_masks_usd_losses_everywhere_but_keeps_risk_metrics(monkeypatc
     assert safe_summary["expected_loss_pct_of_value"] is None
     assert safe_summary["hazard_summary"]["flood"]["scenario_loss_usd"] is None
     assert safe_summary["top_assets"][0]["expected_loss_usd"] is None
-    assert safe_summary["flood_aal_usd"] is None
+    assert safe_summary["flood_aal_truncated_usd"] is None
     assert safe_summary["mean_risk_score"] == 55
     assert pd.isna(safe_assets.loc[0, "expected_loss_usd"])
     assert pd.isna(safe_assets.loc[0, "loss_flood_usd"])

@@ -230,7 +230,7 @@ with st.sidebar:
     if res:
         conf = res["meta"]["confidence"]
         band = hazards.confidence_band(conf)
-        st.markdown(f"<div class='card'><div class='section-label' style='margin-top:0'>Data confidence</div><strong>{band}</strong> · {conf:.2f} / 1.00</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card'><div class='section-label' style='margin-top:0'>Source-quality index</div><strong>{band}</strong> · {conf:.2f} / 1.00</div>", unsafe_allow_html=True)
     if not config.key("OPEN_METEO_API_KEY"):
         st.caption("Open-Meteo is free for non-commercial use. Add `OPEN_METEO_API_KEY` before you sell results built on it.")
     with st.expander("API keys (this session only)"):
@@ -423,6 +423,6 @@ if res:
             t = time.time()
             try:
                 r = run_assessment(TEMPLATE, "current", False, out_dir=config.OUTPUT_DIR / "smoke")
-                st.success(f"OK: {r['summary']['n_assets']} assets in {time.time()-t:.1f}s (confidence {r['meta']['confidence']:.2f})")
+                st.success(f"OK: {r['summary']['n_assets']} assets in {time.time()-t:.1f}s (source-quality index {r['meta']['confidence']:.2f})")
             except Exception as e:
                 st.error(str(e))

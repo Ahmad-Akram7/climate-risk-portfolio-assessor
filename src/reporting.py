@@ -45,10 +45,10 @@ def _usd(x: float) -> str:
 def _confidence_text(meta: dict) -> str:
     c = meta["confidence"]
     if c >= 0.8:
-        return f"Hazard inputs are predominantly real data (confidence {c:.2f})."
+        return f"Hazard inputs are predominantly real data (source-quality index {c:.2f})."
     if c >= 0.3:
-        return f"Hazard inputs are a mix of real and synthetic data (confidence {c:.2f}); treat results as indicative."
-    return (f"**Hazard inputs are mostly SYNTHETIC demo data (confidence {c:.2f}). "
+        return f"Hazard inputs are a mix of real and synthetic data (source-quality index {c:.2f}); treat results as indicative."
+    return (f"**Hazard inputs are mostly SYNTHETIC demo data (source-quality index {c:.2f}). "
             "Results illustrate the method only and must not be used for decisions or disclosure.**")
 
 
@@ -159,7 +159,7 @@ def _llm_prompt(summary: dict, meta: dict, frameworks: list[str]) -> list[dict]:
         else " If the loss-publication status is an internal override, prominently label all financial estimates experimental and not validated."
     )
     sys = ("You are a climate-risk analyst writing a screening-level physical climate risk report. Use ONLY the figures in "
-           "the JSON provided; never invent numbers, sources or regulations. If data confidence is below 0.8 say so "
+           "the JSON provided; never invent numbers, sources or regulations. If the source-quality index is below 0.8 say so "
            "prominently. Write in prose with markdown headings." + loss_instruction)
     usr = (f"Write a report aligned to: {', '.join(frameworks)}. Sections: Executive summary; Methodology and data "
            "sources; Material risk findings; Recommended mitigation strategies; Limitations and caveats. "

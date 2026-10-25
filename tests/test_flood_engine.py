@@ -18,7 +18,7 @@ def test_flood_engine_returns_supported_events_and_components():
     hazards = pd.DataFrame([{"asset_id": "A1", "flood_depth_m": 1.0, "src_flood": "JRC_RP20Y_Local"}])
     result, meta = calculate(assets, hazards, {"source_counts": {"flood": {"JRC_RP20Y_Local": 1}}})
     assert result.iloc[0]["flood_supported_return_periods"] == [20]
-    assert result.iloc[0]["flood_aal_usd"] is None or pd.isna(result.iloc[0]["flood_aal_usd"])
+    assert result.iloc[0]["flood_aal_truncated_usd"] is None or pd.isna(result.iloc[0]["flood_aal_truncated_usd"])
     assert result.iloc[0]["flood_event_return_period"] == 20 and result.iloc[0]["flood_event_loss_usd"] > 0
     assert bool(result.iloc[0]["flood_tail_truncated"])
     assert meta["vulnerability_model_type"] == "fallback_screening"
@@ -38,7 +38,7 @@ def test_calculate_uses_all_supplied_return_period_depths():
     r, _ = calculate(assets, hz, {})
     row = r.iloc[0]
     assert row["flood_supported_return_periods"] == [10, 20, 100]
-    assert row["flood_aal_usd"] is not None and row["flood_aal_usd"] > 0
+    assert row["flood_aal_truncated_usd"] is not None and row["flood_aal_truncated_usd"] > 0
     assert row["flood_event_return_period"] == 100
 
 
@@ -56,3 +56,11 @@ def test_aal_bounds_bracket_and_tail_is_explicit():
     assert abs(_aal_tail_flat(losses) - 0.002 * 50.0) < 1e-12
     assert _aal(losses) + _aal_tail_flat(losses) > _aal(losses)
     assert abs(_aal(losses) + _aal_tail_flat(losses) - (_aal(losses) + 0.1)) < 1e-12
+
+
+def test_aal_handles_gappy_and_non_monotonic_curves():
+    from src.flood_engine import _aal
+    gappy = _aal([(10, 5.0), (500, 50.0), (100, 20.0)])  # input order must not matter
+    assert abs(gappy - _aal([(10, 5.0), (100, 20.0), (500, 50.0)])) < 1e-12
+    odd = _aal([(10, 50.0), (100, 20.0), (500, 30.0)])  # rarer event loses less: unphysical but must stay finite and non-negative
+    assert odd >= 0 and odd == odd

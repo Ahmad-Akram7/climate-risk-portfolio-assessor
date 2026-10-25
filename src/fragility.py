@@ -292,7 +292,7 @@ def portfolio_summary(df: pd.DataFrame, meta: dict) -> dict:
                         "screening functions and asset-class modifiers; it is not a calibrated catastrophe or "
                         "actuarial annual-loss model. Missing exposure attributes remain explicit."),
         # AAL needs at least three return periods per asset; otherwise it is withheld, never shown as 0.
-        "flood_aal_usd": round(_sum(df, "flood_aal_usd"), 2) if "flood_aal_usd" in df and df["flood_aal_usd"].notna().any() else None,
+        "flood_aal_truncated_usd": round(_sum(df, "flood_aal_truncated_usd"), 2) if "flood_aal_truncated_usd" in df and df["flood_aal_truncated_usd"].notna().any() else None,
         "flood_aal_flat_tail_usd": round(_sum(df, "flood_aal_flat_tail_usd"), 2) if "flood_aal_flat_tail_usd" in df and df["flood_aal_flat_tail_usd"].notna().any() else None,
         "flood_event_loss_usd": round(_sum(df, "flood_event_loss_usd"), 2) if "flood_event_loss_usd" in df and df["flood_event_loss_usd"].notna().any() else None,
         "flood_loss_coverage_assets": int(df["flood_event_loss_usd"].notna().sum()) if "flood_event_loss_usd" in df else 0,

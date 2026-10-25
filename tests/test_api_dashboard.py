@@ -140,3 +140,21 @@ def test_real_mode_never_keeps_synthetic_values(tmp_path, monkeypatch):
     assert (df["status_wind"] == "not_assessed").all() and (df["status_flood"] == "not_assessed").all()
     assert not any(str(v).startswith("Synthetic") for col in df if col.startswith("src_") for v in df[col])
     assert r["meta"]["real_mode"] and s["mean_risk_score"] is None or s["not_assessed_assets"] > 0
+
+
+def test_expired_jobs_vanish_and_rate_limit_applies(monkeypatch):
+    import io
+    c = TestClient(app)
+    csv = open(TEMPLATE, "rb").read()
+    post = lambda: c.post("/api/v1/assess", files={"file": ("p.csv", io.BytesIO(csv))}, data={"use_llm": "false"})
+    jid = post().json()["job_id"]
+    for _ in range(100):
+        if c.get(f"/api/v1/jobs/{jid}").json()["status"] != "running":
+            break
+        time.sleep(0.2)
+    monkeypatch.setenv("CRPA_JOB_TTL_HOURS", "0")
+    assert c.get(f"/api/v1/jobs/{jid}").status_code == 404
+    monkeypatch.setenv("CRPA_RATE_LIMIT_PER_MIN", "1")
+    from api import main
+    main._hits.clear()
+    assert post().status_code == 202 and post().status_code == 429

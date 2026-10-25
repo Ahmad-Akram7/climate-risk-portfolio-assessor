@@ -5,8 +5,11 @@ import hashlib
 import json
 import os
 import secrets
+import shutil
 import threading
+import time
 import uuid
+from collections import defaultdict, deque
 from dataclasses import asdict
 
 import pandas as pd
@@ -31,7 +34,8 @@ app = FastAPI(title="Climate Risk Portfolio Assessor", version="1.1.0",
               description="Upload a portfolio CSV, get multi-hazard risk scores and a disclosure-style report.")
 JOBS: dict[str, dict] = {}
 _lock = threading.Lock()
-PUBLIC_HIDDEN = {"out_dir", "owner"}  # server paths are not returned to clients
+_hits: dict[str, deque] = defaultdict(deque)  # shortcut: per-process memory, resets on restart; use a shared store behind several workers
+PUBLIC_HIDDEN = {"out_dir", "owner", "created"}  # server paths are not returned to clients
 ASSET_FIELDS = ["asset_id", "name", "state", "asset_class", "lat", "lon", "replacement_value", "scenario",
                 "assessment_basis", "risk_score", "risk_score_low", "risk_score_high", "risk_tier", "overall_status",
                 "overall_confidence", "low_risk_verified", "dominant_hazard", "expected_loss_usd"] + [
@@ -51,11 +55,36 @@ def _owner(x_api_key: str | None = Header(None)) -> str:
     return hashlib.sha256(x_api_key.encode()).hexdigest()[:16]
 
 
+def _ttl_s() -> float:
+    return float(os.getenv("CRPA_JOB_TTL_HOURS", "24")) * 3600
+
+
+def _drop(job_id: str) -> None:
+    """Remove a job and its files. Caller holds _lock."""
+    j = JOBS.pop(job_id, None)
+    if j and j.get("out_dir"):
+        shutil.rmtree(j["out_dir"], ignore_errors=True)
+
+
+def _rate_limit(owner: str) -> None:
+    limit, now = int(os.getenv("CRPA_RATE_LIMIT_PER_MIN", "30")), time.time()
+    with _lock:
+        q = _hits[owner]
+        while q and now - q[0] > 60:
+            q.popleft()
+        if len(q) >= limit:
+            raise HTTPException(429, f"rate limit: at most {limit} assessments per minute")
+        q.append(now)
+
+
 def _evict_finished() -> None:
     """Keep memory bounded: drop the oldest finished jobs beyond MAX_JOBS. Caller holds _lock."""
+    now = time.time()
+    for k in [k for k, v in JOBS.items() if v.get("status") != "running" and now - v.get("created", now) > _ttl_s()]:
+        _drop(k)
     finished = [k for k, v in JOBS.items() if v.get("status") != "running"]
     for k in finished[:max(0, len(finished) - config.MAX_JOBS)]:
-        JOBS.pop(k, None)
+        _drop(k)
 
 
 def _run(job_id: str, data: bytes, scenario: str, use_llm: bool):
@@ -107,9 +136,10 @@ async def assess(bg: BackgroundTasks, file: UploadFile = File(...), scenario: st
         raise HTTPException(422, "empty file")
     if len(data) > limit:
         raise HTTPException(413, f"file larger than {config.MAX_UPLOAD_MB:g} MB (set CRPA_MAX_UPLOAD_MB to change)")
-    job_id = uuid.uuid4().hex[:12]
+    _rate_limit(owner)
+    job_id = uuid.uuid4().hex  # 128 bits; the owner check is still what protects a job
     with _lock:
-        JOBS[job_id] = dict(job_id=job_id, owner=owner, status="running", progress=0.0, stage="queued")
+        JOBS[job_id] = dict(job_id=job_id, owner=owner, created=time.time(), status="running", progress=0.0, stage="queued")
     bg.add_task(_run, job_id, data, scenario, use_llm)
     return {"job_id": job_id, "status_url": f"/api/v1/jobs/{job_id}"}
 
@@ -117,6 +147,9 @@ async def assess(bg: BackgroundTasks, file: UploadFile = File(...), scenario: st
 def _get_job(job_id: str, owner: str) -> dict:
     with _lock:
         j = JOBS.get(job_id)
+        if j and j.get("status") != "running" and time.time() - j.get("created", 0) > _ttl_s():
+            _drop(job_id)
+            j = None
         j = dict(j) if j else None
     if not j or j.get("owner") != owner:  # same answer for unknown and foreign jobs
         raise HTTPException(404, "unknown job")
