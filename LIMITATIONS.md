@@ -55,3 +55,7 @@ Every run now checks which hazard files and keys are present (`src/readiness.py`
 ## API limits
 
 Finished jobs and their files expire after `CRPA_JOB_TTL_HOURS` (default 24) and are deleted. Each caller may start `CRPA_RATE_LIMIT_PER_MIN` assessments per minute (default 30), counted in memory per process.
+
+## Tooling
+
+The project uses uv with `pyproject.toml` and `uv.lock` (Python 3.12). `requirements.txt` is generated from the lock with `uv export --no-dev --no-hashes --no-emit-project -o requirements.txt`; do not edit it by hand. Heavy optional libraries such as rasterio and geopandas are imported inside the functions that need them, so the app starts without them. The native `lazy import` syntax (PEP 810) needs Python 3.15, which is still a beta, so it is not used yet.

@@ -6,11 +6,11 @@ It covers flood, wind, wildfire, extreme heat, river flooding, drought and lands
 
 ## Quick start
 
-You need Python 3.11 or newer.
+You need [uv](https://docs.astral.sh/uv/). It installs the locked Python 3.12 and every dependency for you.
 
 ```bash
-pip install -r requirements.txt
-streamlit run app/dashboard.py
+uv sync --locked
+uv run streamlit run app/dashboard.py
 ```
 
 The app opens with a demo portfolio, so you can press "Run assessment" straight away. The demo uses synthetic hazard values and says so on every screen and in the report. Nothing is scored as safe because data is missing: a hazard without data shows "No data" instead of "Low".
@@ -74,7 +74,7 @@ The data sources require attribution (CMIP6 under CC BY 4.0, Copernicus ERA5 and
 ## API
 
 ```bash
-uvicorn api.main:app
+uv run uvicorn api.main:app
 ```
 
 Endpoints sit under `/api/v1`: `hazards`, `assess` (CSV upload), `jobs/{id}` and the generated files. Interactive docs are at `/docs`.
@@ -82,8 +82,7 @@ Endpoints sit under `/api/v1`: `hazards`, `assess` (CSV upload), `jobs/{id}` and
 ## Tests
 
 ```bash
-pip install -r requirements-dev.txt
-CRPA_OFFLINE=1 pytest -q
+CRPA_OFFLINE=1 uv run pytest -q
 ```
 
 The connector tests use synthetic responses. I could not reach the Open-Meteo climate, flood and geocoding endpoints from the build environment, so those calls have not been run against the live services. Run one assessment with network access on before relying on them.

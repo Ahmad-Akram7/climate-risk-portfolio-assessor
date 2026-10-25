@@ -8,9 +8,8 @@ When no live layers or API keys are available, CRPA uses synthetic demo values. 
 
 ### On Windows:
 ```powershell
-python -m venv .venv
-.venv\Scripts\pip install -r requirements-dev.txt
-.venv\Scripts\streamlit run app\dashboard.py
+uv sync --locked
+uv run streamlit run app\dashboard.py
 ```
 
 ### On Linux/macOS:
